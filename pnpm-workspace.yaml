@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+  - apps/*
+
+minimumReleaseAgeExclude:
+  - '@tauri-apps/api@2.12.5'
+
+# pnpm 10+ blocks lifecycle scripts by default; esbuild/rollup style
+# native downloads are the only ones we allow.
+onlyBuiltDependencies:
+  - esbuild

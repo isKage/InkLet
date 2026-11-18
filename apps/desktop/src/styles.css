@@ -1,0 +1,1222 @@
+/* InkLet — application chrome.
+ *
+ * The document itself is rendered by the CodeMirror live-preview theme in
+ * `@inklet/editor-ui`; this file only owns the shell (title bar, sidebar, tabs,
+ * status bar) plus the shared colour tokens the editor theme reads.
+ *
+ * Theme is explicit: `data-theme` on <html>, light by default. The OS
+ * preference is intentionally ignored so the app always opens the same way.
+ */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --ink-fg: #1b1b1f;
+  --ink-muted: #64646f;
+  --ink-line: #e2e2e8;
+  --ink-hover: rgba(20, 20, 30, 0.05);
+  --ink-chrome: #f5f5f8;
+  --ink-paper: #ffffff;
+  --ink-source: #fbfbfd;
+  --ink-accent: #a8792f;
+  --ink-link: #1556a3;
+  --ink-bad: #b3261e;
+  --ink-good: #17703a;
+  --ink-src-bg: rgba(168, 121, 47, 0.1);
+  --ink-selection: rgba(168, 121, 47, 0.22);
+  --ink-code-bg: #f3f3f6;
+  /* Markup that stays visible while its line is edited (`#`, `-`, `[ ]`). */
+  --ink-mark: #7f96b8;
+  /* Syntax highlighting inside code blocks (light values match the PDF). */
+  --hl-comment: #7b8794;
+  --hl-keyword: #8a3fa8;
+  --hl-literal: #a15c00;
+  --hl-string: #2f7d32;
+  --hl-title: #1a5fb4;
+  --hl-type: #0f6f8c;
+  --hl-attr: #9a4a12;
+  --hl-meta: #6b6b76;
+  --hl-plain: #3a3a44;
+
+  --ink-serif: "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", Georgia, serif;
+  --ink-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+  --ink-editor-size: 19px;
+  --ink-editor-leading: 1.9;
+}
+
+/* Warm paper: easier on the eyes than white for long sessions. */
+:root[data-theme="sepia"] {
+  color-scheme: light;
+
+  --ink-fg: #33291c;
+  --ink-muted: #7a6a52;
+  --ink-line: #e0d3ba;
+  --ink-hover: rgba(120, 92, 40, 0.08);
+  --ink-chrome: #f3ead7;
+  --ink-paper: #faf3e4;
+  --ink-source: #f6eedd;
+  --ink-accent: #96662a;
+  --ink-link: #1c5b90;
+  --ink-bad: #a8322a;
+  --ink-good: #2c6b32;
+  --ink-src-bg: rgba(150, 102, 42, 0.12);
+  --ink-selection: rgba(150, 102, 42, 0.24);
+  --ink-code-bg: #efe6d2;
+  --ink-mark: #7d8fa6;
+
+  --ink-editor-size: 19px;
+  --ink-editor-leading: 1.9;
+}
+
+/* Cool slate: a quiet grey-blue that keeps the structure visible. */
+:root[data-theme="slate"] {
+  color-scheme: light;
+
+  --ink-fg: #242a33;
+  --ink-muted: #5d6773;
+  --ink-line: #d3dae2;
+  --ink-hover: rgba(38, 52, 70, 0.06);
+  --ink-chrome: #e9eef3;
+  --ink-paper: #f6f8fa;
+  --ink-source: #eef2f6;
+  --ink-accent: #3d6b93;
+  --ink-link: #1d5c93;
+  --ink-bad: #b03a34;
+  --ink-good: #1f6b4a;
+  --ink-src-bg: rgba(61, 107, 147, 0.12);
+  --ink-selection: rgba(61, 107, 147, 0.22);
+  --ink-code-bg: #e8edf2;
+  --ink-mark: #6b86a8;
+
+  --ink-editor-size: 19px;
+  --ink-editor-leading: 1.9;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink-fg: #e9e9ef;
+  --ink-muted: #9b9ba8;
+  --ink-line: #36363f;
+  --ink-hover: rgba(255, 255, 255, 0.07);
+  --ink-chrome: #1b1b20;
+  --ink-paper: #1e1e23;
+  --ink-source: #18181c;
+  --ink-accent: #d8b071;
+  --ink-link: #86b7ff;
+  --ink-bad: #ff8a80;
+  --ink-good: #6dd58c;
+  --ink-src-bg: rgba(216, 176, 113, 0.16);
+  --ink-selection: rgba(216, 176, 113, 0.26);
+  --ink-code-bg: #26262d;
+  --ink-mark: #8fa9cc;
+  --hl-comment: #8b93a1;
+  --hl-keyword: #c792ea;
+  --hl-literal: #f0a35e;
+  --hl-string: #8fce8f;
+  --hl-title: #7fb3f0;
+  --hl-type: #6fc7d8;
+  --hl-attr: #e8b98a;
+  --hl-meta: #9b9ba8;
+  --hl-plain: #d6d6e0;
+
+  --ink-editor-size: 19px;
+  --ink-editor-leading: 1.9;
+}
+
+/* Application chrome scales with the "interface size" setting; the document
+   body size is separate and lives in the 格式 menu. */
+.titlebar,
+.sidebar,
+.sidebar-resizer,
+.tabs,
+.statusbar,
+.modal,
+.toast,
+.banner {
+  zoom: var(--ink-ui-scale, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--ink-paper);
+  color: var(--ink-fg);
+  font: 13.5px/1.6 var(--ink-sans);
+  overflow: hidden;
+}
+
+/* ---------- title bar ---------- */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 46px;
+  padding: 0 14px;
+  background: var(--ink-chrome);
+  border-bottom: 1px solid var(--ink-line);
+  user-select: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* White rounded square with a rounded monospace "IL" — the app's only mark. */
+/* The mark is an <svg> sharing the app icon's geometry (see index.html). */
+.mark-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.mark {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: #fff;
+  border: 1px solid var(--ink-line);
+  color: #17171b;
+  box-shadow: 0 1px 2px rgba(20, 20, 30, 0.06);
+}
+
+.app-name {
+  font: 600 13px/1.2 var(--ink-sans);
+  letter-spacing: 0.01em;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Chrome controls are quiet by default: no borders, only a hover wash. */
+.ghost,
+.btn {
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 13px/1.4 var(--ink-sans);
+  cursor: pointer;
+}
+
+/* A quiet focus ring: the default black outline is far too loud next to the
+   rest of the chrome. */
+.ghost:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--ink-accent);
+  outline-offset: 1px;
+}
+
+.ghost:hover,
+.btn:hover {
+  background: var(--ink-hover, rgba(20, 20, 30, 0.05));
+  color: var(--ink-fg);
+}
+
+.btn {
+  border-color: var(--ink-line);
+  color: var(--ink-fg);
+}
+
+.btn.primary {
+  background: var(--ink-accent);
+  border-color: var(--ink-accent);
+  color: #fff;
+}
+
+.btn.primary:hover {
+  filter: brightness(1.06);
+  color: #fff;
+}
+
+.btn.icon,
+.ghost.icon {
+  width: 28px;
+  padding: 5px 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.sidebar {
+  width: var(--ink-sidebar-width, 224px);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink-chrome);
+  border-right: 1px solid var(--ink-line);
+  min-height: 0;
+}
+
+/* Dragged out of the way: only the handle stays, so it can be pulled back. */
+.sidebar.collapsed {
+  width: 0;
+  border-right: none;
+  overflow: hidden;
+}
+
+/* Sits on the boundary and is a sibling of the sidebar, so collapsing the
+   sidebar cannot clip it away. It carries the same zoom as the sidebar: without
+   it the handle drifted away from the border as soon as the interface scale
+   was anything but 100%. */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--ink-sidebar-width, 224px);
+  margin-left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+/* Only while the sidebar is hidden: bring it back. */
+.sidebar-toggle {
+  flex: none;
+  width: 34px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-toggle:hover {
+  color: var(--ink-fg);
+}
+
+.sidebar-toggle.hidden {
+  display: none;
+}
+
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+/* With the column gone the handle would straddle the window edge, so it slides
+   fully inside and stays a comfortable target. */
+.sidebar.collapsed ~ .sidebar-resizer {
+  margin-left: 0;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer.dragging::after {
+  background: var(--ink-accent);
+  opacity: 0.45;
+}
+
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 8px;
+  font: 600 10.5px/1 var(--ink-sans);
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+}
+
+.side-tab {
+  /* Fixed width and no wrapping: the folder name gives way first, and when it is
+     gone the whole column collapses instead of clipping these two labels. */
+  flex: none;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 600 11px/1.3 var(--ink-sans);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.side-tab:hover {
+  color: var(--ink-fg);
+}
+
+.side-tab.active {
+  color: var(--ink-fg);
+  background: var(--ink-hover);
+}
+
+/* The folder name repeats the tab and status bar; it only shows on hover. */
+/* The workspace folder name: as much of it as the header has room for, then an
+   ellipsis. It used to appear only on hover, which left the column anonymous. */
+.side-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.side-add {
+  flex: none;
+  margin-left: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 15px/1 var(--ink-sans);
+  cursor: pointer;
+}
+
+.side-add:hover {
+  background: var(--ink-hover);
+  color: var(--ink-fg);
+}
+
+.text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  background: var(--ink-paper);
+  color: var(--ink-fg);
+  font: 12.5px/1.6 var(--ink-sans);
+}
+
+.text-input:focus {
+  outline: 2px solid var(--ink-accent);
+  outline-offset: -1px;
+}
+
+.outline {
+  flex: 1;
+  overflow: auto;
+  padding: 6px 0 24px;
+}
+
+.outline.hidden,
+.tree.hidden {
+  display: none;
+}
+
+.outline-item {
+  display: block;
+  width: 100%;
+  padding: 3px 12px 3px 14px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 12.5px/1.7 var(--ink-sans);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.outline-item[data-level="2"] { padding-left: 26px; }
+.outline-item[data-level="3"] { padding-left: 38px; }
+.outline-item[data-level="4"] { padding-left: 50px; }
+
+.outline-item:hover {
+  color: var(--ink-fg);
+  background: var(--ink-hover);
+}
+
+.tree {
+  flex: 1;
+  overflow: auto;
+  padding: 6px 0 24px;
+  font-size: 14px;
+}
+
+.tree-dir > summary {
+  cursor: pointer;
+  padding: 2px 8px;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+
+.tree-file {
+  display: block;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-fg);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tree-file:hover {
+  background: var(--ink-src-bg);
+}
+
+/* Markdown files get a small notebook mark, so they read as documents. */
+.tree-file[data-markdown="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 11px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  background-color: var(--ink-muted);
+  opacity: 0.55;
+  -webkit-mask: center / contain no-repeat
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 12'><path d='M1 1h6l3 3v7H1z' fill='none' stroke='black' stroke-width='1.2'/><path d='M3 5.5h5M3 7.5h5M3 9h3' stroke='black' stroke-width='1'/></svg>");
+  mask: center / contain no-repeat
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 12'><path d='M1 1h6l3 3v7H1z' fill='none' stroke='black' stroke-width='1.2'/><path d='M3 5.5h5M3 7.5h5M3 9h3' stroke='black' stroke-width='1'/></svg>");
+}
+
+.tree-file.muted {
+  color: var(--ink-muted);
+}
+
+.tree-file.active {
+  background: var(--ink-src-bg);
+  color: var(--ink-accent);
+  font-weight: 600;
+}
+
+.tree-empty {
+  padding: 10px 12px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---------- tabs ---------- */
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 34px;
+  background: transparent;
+  border-bottom: 1px solid var(--ink-line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 14px;
+  border: none;
+  border-right: 1px solid var(--ink-line);
+  background: transparent;
+  color: var(--ink-muted);
+  font: 13px/1.4 var(--ink-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--ink-fg);
+}
+
+.tab.active {
+  background: var(--ink-paper);
+  color: var(--ink-fg);
+  box-shadow: inset 0 2px 0 var(--ink-accent);
+}
+
+.tab.dirty .tab-name::before {
+  content: "●";
+  font-size: 8px;
+  vertical-align: middle;
+  margin-right: 4px;
+  color: var(--ink-accent);
+}
+
+.tab-close {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tab:hover .tab-close,
+.tab.active .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background: var(--ink-hover, rgba(20, 20, 30, 0.08));
+  color: var(--ink-fg);
+}
+
+.panes {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.editor-pane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ink-paper);
+}
+
+.editor-host,
+.preview-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.editor-host .cm-editor,
+.preview-host .cm-editor {
+  height: 100%;
+}
+
+.preview-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+  overflow: hidden;
+}
+
+.preview-pane.hidden,
+.hidden {
+  display: none;
+}
+
+/* ---------- empty state ---------- */
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--ink-paper);
+}
+
+/* Folder open, nothing selected: only a large ghost mark. */
+.empty-state.watermark .empty-actions {
+  display: none;
+}
+
+.empty-state.watermark .empty-mark {
+  /* The keyline has to disappear into the page, not into a white box. */
+  --inklet-mark-keyline: var(--ink-paper);
+  width: 190px;
+  height: 190px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-fg);
+  opacity: 0.05;
+}
+
+/* Must outweigh `.empty-state`'s own `display`: a plain `.hidden` utility would
+   lose to the later, equal-specificity rule and the overlay would stay on top. */
+.empty-state.hidden {
+  display: none;
+}
+
+.empty-card {
+  max-width: 420px;
+  text-align: center;
+}
+
+.empty-mark {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--ink-line);
+  color: #17171b;
+  box-shadow: 0 2px 8px rgba(20, 20, 30, 0.08);
+}
+
+.empty-mark.muted {
+  /* The only mark that is still text: the "cannot preview" glyph. */
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  font-size: 20px;
+}
+
+.empty-card h1 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.empty-hint {
+  margin: 0 0 18px;
+  color: var(--ink-muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* ---------- banner ---------- */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  background: rgba(179, 38, 30, 0.1);
+  border-top: 1px solid var(--ink-line);
+  font-size: 12.5px;
+}
+
+/* The tone is part of the message: green means done, red means failed. */
+.banner[data-tone="success"] {
+  background: rgba(26, 127, 75, 0.1);
+}
+
+.banner[data-tone="success"] .banner-text {
+  color: var(--ink-good, #1a7f4b);
+}
+
+.banner[data-tone="success"] .banner-text::before {
+  content: "✓ ";
+  font-weight: 700;
+}
+
+.banner[data-tone="info"] {
+  background: rgba(52, 96, 168, 0.08);
+}
+
+.banner[data-tone="info"] .banner-text {
+  color: var(--ink-info, #3460a8);
+}
+
+.banner-text {
+  flex: 1;
+  color: var(--ink-bad);
+}
+
+.banner button {
+  padding: 3px 10px;
+  border: 1px solid var(--ink-line);
+  border-radius: 6px;
+  background: var(--ink-paper);
+  color: var(--ink-fg);
+  font: 12.5px/1.6 var(--ink-sans);
+  cursor: pointer;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 70;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+  box-shadow: 0 12px 32px rgba(20, 20, 30, 0.18);
+}
+
+.context-menu.hidden {
+  display: none;
+}
+
+.context-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-fg);
+  font: 12.5px/1.5 var(--ink-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu button:hover {
+  background: var(--ink-hover);
+}
+
+.context-menu button.danger {
+  color: var(--ink-bad);
+}
+
+.context-menu hr {
+  margin: 4px 6px;
+  border: none;
+  border-top: 1px solid var(--ink-line);
+}
+
+/* Overlay input for a table cell, positioned outside the editor's DOM. */
+.ink-cell-editor {
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  padding: 3px 8px;
+  border: 2px solid var(--ink-accent);
+  border-radius: 4px;
+  background: var(--ink-paper);
+  color: var(--ink-fg);
+  font: 0.86em/1.4 var(--ink-sans);
+  box-shadow: 0 6px 18px rgba(20, 20, 30, 0.16);
+  outline: none;
+}
+
+/* ---------- toast ----------
+
+   Deliberately quiet: a small grey pill at the top, gone in two seconds. A
+   reward should not shout louder than the document. */
+
+/* ---------- media preview (images, PDFs) ---------- */
+
+/* An overlay like the empty state: the editor keeps its layout underneath, so
+   switching back to a document does not have to rebuild it. */
+.media-state {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: var(--ink-source);
+}
+
+.media-state.hidden {
+  display: none;
+}
+
+.media-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(20, 20, 30, 0.12);
+}
+
+.media-pdf {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 6px;
+  background: var(--ink-paper);
+}
+
+.media-note {
+  margin: 0;
+  font: 13px/1.6 var(--ink-sans);
+  color: var(--ink-muted);
+}
+
+/* Drop target hint: covers the window, never blocks the drag itself. */
+.drop-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ink-paper) 82%, transparent);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.drop-hint::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 2px dashed var(--ink-accent);
+  border-radius: 12px;
+  opacity: 0.7;
+}
+
+.drop-hint.hidden {
+  display: none;
+}
+
+.drop-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 26px;
+  border-radius: 12px;
+  background: var(--ink-paper);
+  box-shadow: 0 18px 50px rgba(20, 20, 30, 0.18);
+  text-align: center;
+}
+
+.drop-mark {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-accent);
+}
+
+.drop-card p {
+  margin: 0;
+  font: 600 14px/1.4 var(--ink-sans);
+  color: var(--ink-fg);
+}
+
+.drop-sub {
+  font: 12px/1.5 var(--ink-sans);
+  color: var(--ink-muted);
+}
+
+.toast {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+  color: var(--ink-muted);
+  font: 12px/1.6 var(--ink-sans);
+  box-shadow: 0 8px 24px rgba(20, 20, 30, 0.12);
+  opacity: 1;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.toast.hidden {
+  display: block;
+  opacity: 0;
+}
+
+/* ---------- modal ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 20, 30, 0.18);
+}
+
+.modal-backdrop.hidden {
+  display: none;
+}
+
+.modal {
+  width: min(380px, calc(100vw - 64px));
+  padding: 20px 22px 16px;
+  border-radius: 10px;
+  background: var(--ink-paper);
+  border: 1px solid var(--ink-line);
+  box-shadow: 0 18px 48px rgba(20, 20, 30, 0.22);
+}
+
+.modal-title {
+  margin: 0 0 6px;
+  font: 600 13.5px/1.5 var(--ink-sans);
+  color: var(--ink-fg);
+}
+
+.modal-body {
+  margin: 0 0 16px;
+  font: 12.5px/1.6 var(--ink-sans);
+  color: var(--ink-muted);
+}
+
+.settings {
+  width: min(560px, calc(100vw - 64px));
+}
+
+.settings-layout {
+  display: flex;
+  gap: 18px;
+  min-height: 190px;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 104px;
+  flex: none;
+  padding-right: 10px;
+  border-right: 1px solid var(--ink-line);
+}
+
+.settings-nav button {
+  padding: 6px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 12.5px/1.4 var(--ink-sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-nav button:hover {
+  color: var(--ink-fg);
+}
+
+.settings-nav button.active {
+  background: var(--ink-hover);
+  color: var(--ink-fg);
+}
+
+.settings-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-body section.hidden {
+  display: none;
+}
+
+.shortcuts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font: 12px/1.6 var(--ink-sans);
+}
+
+.shortcuts dt {
+  color: var(--ink-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.shortcuts dd {
+  margin: 0;
+  color: var(--ink-fg);
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+}
+
+.setting-name {
+  font: 12.5px/1.5 var(--ink-sans);
+  color: var(--ink-fg);
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--ink-line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.seg button {
+  padding: 3px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 12px/1.6 var(--ink-sans);
+  cursor: pointer;
+}
+
+.seg button:hover {
+  color: var(--ink-fg);
+}
+
+.seg button.active {
+  background: var(--ink-accent);
+  color: #fff;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--ink-line);
+  border-radius: 7px;
+  padding: 2px 4px;
+  font: 12px/1.6 var(--ink-sans);
+  color: var(--ink-fg);
+  min-width: 92px;
+  justify-content: center;
+}
+
+.stepper button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 14px/1 var(--ink-sans);
+  cursor: pointer;
+}
+
+.stepper button:hover {
+  background: var(--ink-hover);
+  color: var(--ink-fg);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- notice ---------- */
+
+.notice {
+  padding: 8px 16px;
+  background: var(--ink-src-bg);
+  border-top: 1px solid var(--ink-line);
+  color: var(--ink-fg);
+  font-size: 12.5px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.notice::after {
+  content: "  （点击关闭）";
+  color: var(--ink-muted);
+}
+
+/* ---------- status bar ---------- */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 3px 14px;
+  background: var(--ink-chrome);
+  border-top: 1px solid var(--ink-line);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink-muted);
+  min-height: 27px;
+}
+
+.status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mode {
+  white-space: nowrap;
+  opacity: 0.65;
+}
+
+.diagnostics {
+  margin-left: auto;
+}
+
+.save-state[data-kind="saved"] {
+  color: var(--ink-good);
+}
+
+.save-state[data-kind="saving"],
+.save-state[data-kind="editing"] {
+  color: var(--ink-accent);
+}
+
+.save-state[data-kind="conflict"] {
+  color: var(--ink-bad);
+}
+
+.diagnostics {
+  display: flex;
+  gap: 10px;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+.diag {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 38vw;
+}
+
+.diag-error {
+  color: var(--ink-bad);
+}
+
+.diag-warning {
+  color: var(--ink-accent);
+}
+
+.diag-ok {
+  color: var(--ink-good);
+}
+
+.diag-more {
+  color: var(--ink-muted);
+}

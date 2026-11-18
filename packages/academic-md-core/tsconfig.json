@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No "DOM": the core package must not depend on the browser. Anything that
+    // touches `document` or `window` fails typecheck here by construction.
+    "lib": ["ES2022"]
+  },
+  "include": ["src", "test"]
+}

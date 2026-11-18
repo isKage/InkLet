@@ -1,0 +1,29 @@
+{
+  "name": "@inklet/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "tauri": "tauri",
+    "bundle:app": "tauri build --bundles app",
+    "bundle": "tauri build",
+    "dev:tauri": "tauri dev"
+  },
+  "dependencies": {
+    "@codemirror/state": "6.7.6",
+    "@inklet/academic-md-core": "workspace:*",
+    "@inklet/editor-ui": "workspace:*",
+    "@inklet/math-render": "workspace:*",
+    "@tauri-apps/api": "2.12.5",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "highlight.js": "^11.12.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
+    "vite": "8.3.8"
+  }
+}

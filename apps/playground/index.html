@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InkLet · math spike</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1b1b1f;
+        --muted: #6b6b76;
+        --line: #dcdce3;
+        --bad: #b3261e;
+        --bg: #ffffff;
+        --panel: #f7f7fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e8e8ee;
+          --muted: #9a9aa6;
+          --line: #35353d;
+          --bad: #ff8a80;
+          --bg: #17171b;
+          --panel: #1f1f25;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px clamp(16px, 5vw, 64px);
+        background: var(--bg);
+        color: var(--fg);
+        font: 15px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 24px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 16px;
+        align-items: start;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+      .row > code {
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--muted);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .out {
+        overflow-x: auto;
+      }
+      .err {
+        color: var(--bad);
+        font: 12px/1.5 ui-monospace, monospace;
+      }
+      #live {
+        margin-top: 28px;
+        padding: 16px;
+        background: var(--panel);
+        border-radius: 10px;
+      }
+      #live textarea {
+        width: 100%;
+        min-height: 64px;
+        font: 13px/1.5 ui-monospace, monospace;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        resize: vertical;
+      }
+      #liveOut {
+        margin-top: 12px;
+        min-height: 48px;
+        overflow-x: auto;
+      }
+      #stats {
+        margin-top: 8px;
+        color: var(--muted);
+        font: 12px/1.5 ui-monospace, monospace;
+      }
+      .panel {
+        margin-top: 28px;
+        padding: 16px;
+        background: var(--panel);
+        border-radius: 10px;
+      }
+      .panel textarea {
+        width: 100%;
+        min-height: 140px;
+        font: 13px/1.5 ui-monospace, monospace;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        resize: vertical;
+      }
+      .panel pre {
+        margin: 12px 0 0;
+        padding: 10px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow-x: auto;
+        font: 12px/1.5 ui-monospace, monospace;
+        color: var(--muted);
+      }
+      .summary {
+        margin-top: 8px;
+        color: var(--muted);
+        font: 12px/1.5 ui-monospace, monospace;
+        white-space: pre-wrap;
+      }
+      .semantics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .sem-section {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        background: var(--bg);
+        overflow-x: auto;
+      }
+      .sem-title {
+        font: 12px/1.5 ui-monospace, monospace;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .semantics table {
+        width: 100%;
+        border-collapse: collapse;
+        font: 12px/1.5 ui-monospace, monospace;
+      }
+      .semantics td {
+        padding: 2px 6px 2px 0;
+        vertical-align: top;
+        color: var(--fg);
+      }
+      .semantics td.num {
+        color: #1a7f37;
+      }
+      .semantics td.warn {
+        color: var(--bad);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>InkLet · M0 math spike</h1>
+    <div class="meta" id="meta">booting…</div>
+    <div id="gallery"></div>
+    <div id="live">
+      <strong>live input</strong> — type TeX, rendered on every keystroke
+      <textarea id="liveIn" spellcheck="false"></textarea>
+      <div id="liveOut"></div>
+      <div id="stats"></div>
+    </div>
+    <div class="panel">
+      <strong>syntax tree</strong> — the Lezer tree behind preview, diagnostics and
+      export (M0 day 2: maths nodes)
+      <textarea id="mdIn" spellcheck="false"></textarea>
+      <div class="summary" id="mdSummary"></div>
+      <div id="mdSemantics" class="semantics"></div>
+      <pre id="mdOut"></pre>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

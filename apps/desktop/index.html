@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InkLet</title>
+    <!--
+      First paint. The bundle's stylesheet arrives after the HTML is parsed, and
+      the settings that decide the colours live in localStorage, so without this
+      the window flashed an unstyled sheet in the wrong theme before settling.
+      The shell stays hidden until the app says it is ready (see app.ts).
+    -->
+    <style>
+      html {
+        background: #ffffff;
+      }
+      html[data-theme="sepia"] {
+        background: #faf3e4;
+      }
+      html[data-theme="slate"] {
+        background: #f6f8fa;
+      }
+      html[data-theme="dark"] {
+        background: #1e1e23;
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        background: inherit;
+        color: #1b1b1f;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+      }
+      html[data-theme="dark"] body {
+        color: #e9e9ef;
+      }
+      body:not(.ready) > * {
+        visibility: hidden;
+      }
+    </style>
+    <script>
+      // Apply the stored look before the first paint, so the theme and the
+      // document metrics never flash their defaults.
+      try {
+        var saved = JSON.parse(localStorage.getItem('inklet.settings') || 'null');
+        if (saved) {
+          var root = document.documentElement;
+          if (saved.theme) root.dataset.theme = saved.theme;
+          if (saved.editorSize) root.style.setProperty('--ink-editor-size', saved.editorSize + 'px');
+          if (saved.paraGap) root.style.setProperty('--ink-para-gap', saved.paraGap + 'em');
+          if (saved.pageMargin != null) root.style.setProperty('--ink-line-pad', saved.pageMargin + 'px');
+          if (saved.uiScale) root.style.setProperty('--ink-ui-scale', String(saved.uiScale));
+        }
+      } catch (error) {
+        /* storage unavailable: the defaults stand */
+      }
+    </script>
+  </head>
+  <body>
+    <!--
+      The mark, defined once: "IL" plus the grey stroke that turns it into a K.
+      The same path data is the app icon (scripts/brand/mark.svg); only the padding
+      differs — the icon carries its own white plate, this one sits in a CSS box.
+    -->
+    <svg class="mark-defs" aria-hidden="true" focusable="false">
+      <symbol id="inklet-mark" viewBox="143 138 234 234">
+        <!-- L first, so the keyline can cut it -->
+        <path
+          d="M238 185a17 17 0 0 1 34 0v123h63a13.5 13.5 0 0 1 0 27h-88a9 9 0 0 1-9-9z"
+          fill="currentColor"
+        />
+        <clipPath id="inklet-mark-clip">
+          <rect x="208" y="120" width="300" height="280" />
+        </clipPath>
+        <g clip-path="url(#inklet-mark-clip)">
+          <path
+            d="M196 283 320 185"
+            fill="none"
+            style="stroke: var(--inklet-mark-keyline, #fff)"
+            stroke-width="48"
+            stroke-linecap="round"
+          />
+          <path
+            d="M196 283 320 185"
+            fill="none"
+            stroke="currentColor"
+            stroke-opacity="0.24"
+            stroke-width="34"
+            stroke-linecap="round"
+          />
+        </g>
+        <!-- I last: it hides the stroke's start -->
+        <rect x="175" y="168" width="34" height="169" rx="17" fill="currentColor" />
+      </symbol>
+    </svg>
+    <header class="titlebar">
+      <div class="brand" id="brand" title="InkLet · 学术草稿编辑器">
+        <svg class="mark" aria-hidden="true" focusable="false"><use href="#inklet-mark" /></svg>
+        <span class="app-name">InkLet</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="openFolder" class="ghost">选择文件夹</button>
+        <button id="guideButton" class="ghost">指南</button>
+        <button id="themeToggle" class="ghost icon" title="切换浅色 / 深色" aria-label="切换主题">☾</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-head">
+          <button class="side-tab" data-panel="files" id="panelFiles">文件</button>
+          <button class="side-tab" data-panel="outline" id="panelOutline">大纲</button>
+          <button class="side-add" id="newEntry" title="新建">+</button>
+          <span class="side-name" id="workspaceName"></span>
+        </div>
+        <div class="tree" id="tree"></div>
+        <div class="outline hidden" id="outline"></div>
+      </aside>
+      <div class="sidebar-resizer" id="sidebarResizer" title="拖动调整宽度，拖到最左边隐藏"></div>
+
+      <main class="main">
+        <div class="tabs" id="tabs">
+          <button class="sidebar-toggle hidden" id="sidebarToggle" title="显示侧栏" aria-label="显示侧栏">☰</button>
+        </div>
+        <div class="panes">
+          <div class="editor-pane">
+            <div class="editor-host" id="editorHost"></div>
+            <div class="empty-state" id="emptyState">
+              <div class="empty-card">
+                <svg class="empty-mark" aria-hidden="true" focusable="false"><use href="#inklet-mark" /></svg>
+                <div class="empty-actions">
+                  <button class="btn primary" id="emptyOpen">选择文件夹</button>
+                  <button class="btn" id="emptyGuide">指南</button>
+                </div>
+              </div>
+            </div>
+            <div class="empty-state hidden" id="unsupportedState">
+              <div class="empty-card">
+                <div class="empty-mark muted">⌀</div>
+                <h1 id="unsupportedTitle">无法预览此文件</h1>
+              </div>
+            </div>
+            <!-- Images and PDFs open side by side with the text editor. -->
+            <div class="media-state hidden" id="mediaState">
+              <img class="media-image hidden" id="mediaImage" alt="" />
+              <iframe class="media-pdf hidden" id="mediaPdf" title="PDF 预览"></iframe>
+              <p class="media-note hidden" id="mediaNote"></p>
+            </div>
+          </div>
+          <div class="preview-pane hidden" id="previewPane">
+            <div class="preview-host" id="previewHost"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Shown while a folder or file is being dragged over the window. -->
+    <div class="drop-hint hidden" id="dropHint">
+      <div class="drop-card">
+        <span class="drop-mark" aria-hidden="true">↓</span>
+        <p id="dropTitle">松开即打开</p>
+        <span class="drop-sub" id="dropSub">文件夹会成为工作区，Markdown 文件会打开它所在的文件夹</span>
+      </div>
+    </div>
+
+    <div class="toast hidden" id="toast"></div>
+
+    <div class="context-menu hidden" id="contextMenu"></div>
+
+    <div class="modal-backdrop hidden" id="renamePanel">
+      <div class="modal settings" role="dialog" aria-modal="true">
+        <p class="modal-title" id="renameTitle">重命名</p>
+        <div class="setting">
+          <input class="text-input" id="renameInput" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn primary" id="renameConfirm">确定</button>
+          <button class="btn" id="renameCancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="newPanel">
+      <div class="modal settings" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+        <p class="modal-title" id="newTitle">新建</p>
+        <div class="setting">
+          <span class="setting-name" id="newKindLabel">类型</span>
+          <div class="seg" id="newKind">
+            <button data-kind="file" id="newFile">文件</button>
+            <button data-kind="dir" id="newDir">文件夹</button>
+          </div>
+        </div>
+        <div class="setting">
+          <span class="setting-name" id="newNameLabel">名称</span>
+          <input class="text-input" id="newName" placeholder="未命名.md" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn primary" id="newCreate">创建</button>
+          <button class="btn" id="newCancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="tablePanel">
+      <div class="modal settings" role="dialog" aria-modal="true" aria-labelledby="tableTitle">
+        <p class="modal-title" id="tableTitle">插入表格</p>
+        <div class="setting">
+          <span class="setting-name" id="tableRowsLabel">行</span>
+          <div class="stepper">
+            <button id="tableRowsDown" aria-label="减少行数">−</button>
+            <span id="tableRows">3</span>
+            <button id="tableRowsUp" aria-label="增加行数">+</button>
+          </div>
+        </div>
+        <div class="setting">
+          <span class="setting-name" id="tableColsLabel">列</span>
+          <div class="stepper">
+            <button id="tableColsDown" aria-label="减少列数">−</button>
+            <span id="tableCols">3</span>
+            <button id="tableColsUp" aria-label="增加列数">+</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn primary" id="tableInsert">插入</button>
+          <button class="btn" id="tableCancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="codePanel">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="codeTitle">
+        <p class="modal-title" id="codeTitle">插入代码块</p>
+        <div class="setting">
+          <span class="setting-name" id="codeLangLabel">语言</span>
+          <select class="text-input" id="codeLangSelect"></select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn primary" id="codeInsert">插入</button>
+          <button class="btn" id="codeCancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="settingsPanel">
+      <div class="modal settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <p class="modal-title" id="settingsTitle">设置</p>
+        <div class="settings-layout">
+          <nav class="settings-nav">
+            <button data-cat="editor" class="active" id="catEditor">编辑器</button>
+            <button data-cat="look" id="catLook">外观</button>
+            <button data-cat="keys" id="catKeys">快捷键</button>
+          </nav>
+          <div class="settings-body">
+            <section data-cat="editor">
+              <div class="setting">
+                <span class="setting-name" id="settingEditorSize">正文字号</span>
+                <div class="stepper">
+                  <button id="editorDown" aria-label="减小">−</button>
+                  <span id="editorValue">19px</span>
+                  <button id="editorUp" aria-label="增大">+</button>
+                </div>
+              </div>
+              <div class="setting">
+                <span class="setting-name" id="settingLeading">段内行距</span>
+                <div class="stepper">
+                  <button id="leadingDown">−</button>
+                  <span id="leadingValue">1.6</span>
+                  <button id="leadingUp">+</button>
+                </div>
+              </div>
+              <div class="setting">
+                <span class="setting-name" id="settingParaGap">段间距</span>
+                <div class="stepper">
+                  <button id="paraGapDown">−</button>
+                  <span id="paraGapValue">0.9em</span>
+                  <button id="paraGapUp">+</button>
+                </div>
+              </div>
+              <div class="setting">
+                <span class="setting-name" id="settingPageMargin">页边距</span>
+                <div class="stepper">
+                  <button id="pageMarginDown" aria-label="减小页边距">−</button>
+                  <span id="pageMarginValue">28px</span>
+                  <button id="pageMarginUp" aria-label="增大页边距">+</button>
+                </div>
+              </div>
+            </section>
+            <section data-cat="look" class="hidden">
+              <div class="setting">
+                <span class="setting-name" id="settingAppearance">主题</span>
+                <div class="seg" id="setTheme">
+                  <button data-theme="light" id="themeLight">浅色</button>
+                  <button data-theme="sepia" id="themeSepia">暖纸</button>
+                  <button data-theme="slate" id="themeSlate">蓝灰</button>
+                  <button data-theme="dark" id="themeDark">深色</button>
+                </div>
+              </div>
+              <div class="setting">
+                <span class="setting-name" id="settingFont">界面字号</span>
+                <div class="stepper">
+                  <button id="fontDown">−</button>
+                  <span id="fontValue">100%</span>
+                  <button id="fontUp">+</button>
+                </div>
+              </div>
+              <div class="setting">
+                <span class="setting-name" id="settingLanguage">界面语言</span>
+                <div class="seg" id="setLang">
+                  <button data-lang="zh" id="langZh">中文</button>
+                  <button data-lang="en" id="langEn">English</button>
+                </div>
+              </div>
+            </section>
+            <section data-cat="keys" class="hidden">
+              <dl class="shortcuts" id="shortcutList"></dl>
+            </section>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn primary" id="settingsClose">完成</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <p class="modal-title" id="modalTitle"></p>
+        <p class="modal-body" id="modalBody"></p>
+        <div class="modal-actions" id="modalActions"></div>
+      </div>
+    </div>
+    <div class="notice hidden" id="notice"></div>
+
+    <footer class="statusbar">
+      <span class="status" id="status"></span>
+      <span class="mode" id="modeLabel"></span>
+      <span class="save-state" id="saveState"></span>
+      <span class="diagnostics" id="diagnostics"></span>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "name": "inklet",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @inklet/playground dev",
+    "dev:tauri": "bash scripts/dev/dev-tauri.sh",
+    "build": "pnpm -r --if-present build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rust": "bash scripts/test/test-rust.sh",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint .",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm --filter @inklet/playground smoke",
+    "ui:check": "bash scripts/test/ui-check.sh",
+    "icon": "node scripts/assets/make-icon.mjs",
+    "package:mac": "bash scripts/packaging/package-mac.sh",
+    "package:win": "powershell -ExecutionPolicy Bypass -File scripts/packaging/package-win.ps1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "eslint": "10.15.0",
+    "jsdom": "31.0.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}
