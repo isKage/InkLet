@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
+portable-pty = "0.9.0"
 
 # Setting the Dock icon at runtime, which macOS otherwise takes from the .app
 # bundle — and `tauri dev` runs a bare binary with no bundle at all.

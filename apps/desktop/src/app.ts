@@ -8,6 +8,7 @@ import type { ParsedDocument } from '@inklet/academic-md-core';
 import {
   bumpMathGeneration,
   createEditor,
+  jumpToPosition,
   refreshDecorations,
   replaceDocument,
   setEditorMode,
@@ -18,6 +19,8 @@ import { STRINGS, type Lang, type Strings } from './i18n.js';
 import { insertText as insertTextSpec, toggleLinePrefix, wrapInFence, wrapSelection } from './formatting.js';
 import { imageTargets, printDocument } from './export.js';
 import { buildTable } from './formatting.js';
+import { resolveLink } from './links.js';
+import { TerminalPanel } from './terminal.js';
 import * as ws from './workspace.js';
 import './styles.css';
 
@@ -111,7 +114,6 @@ const themeSlate = must<HTMLButtonElement>('themeSlate');
 const themeDark = must<HTMLButtonElement>('themeDark');
 const langZh = must<HTMLButtonElement>('langZh');
 const langEn = must<HTMLButtonElement>('langEn');
-const emptyGuide = must<HTMLButtonElement>('emptyGuide');
 
 const unsupportedState = must('unsupportedState');
 const mediaState = must('mediaState');
@@ -147,8 +149,22 @@ const panelOutline = must<HTMLButtonElement>('panelOutline');
 const outlineEl = must('outline');
 const openFolderButton = must<HTMLButtonElement>('openFolder');
 
-const guideButton = must<HTMLButtonElement>('guideButton');
 const themeToggle = must<HTMLButtonElement>('themeToggle');
+const terminalToggle = must<HTMLButtonElement>('terminalToggle');
+const terminalPanel = must('terminalPanel');
+const terminalHost = must('terminalHost');
+const terminalCwdEl = must('terminalCwd');
+const terminalTitle = must('terminalTitle');
+const terminalCollapse = must<HTMLButtonElement>('terminalCollapse');
+const terminalKill = must<HTMLButtonElement>('terminalKill');
+const terminalResizer = must('terminalResizer');
+
+// The terminal only exists in the desktop shell: a browser tab has no PTY.
+const terminal = ws.isDesktopShell
+  ? new TerminalPanel(terminalPanel, terminalHost, terminalCwdEl, () => ({
+      exited: t().terminalExited,
+    }))
+  : null;
 
 type Mode = 'live' | 'split';
 /**
@@ -181,6 +197,8 @@ const state = {
   entries: [] as ws.Entry[],
   open: [] as OpenDoc[],
   active: null as string | null,
+  /** Folder the tree highlights: where a paste lands. '' is the workspace root. */
+  selectedDir: null as string | null,
   panel: 'files' as 'files' | 'outline',
   /** Path of a file the tree shows but the editor cannot render. */
   unsupported: null as string | null,
@@ -290,9 +308,7 @@ function t(): Strings {
 function applyChromeLanguage(): void {
   const strings = t();
   openFolderButton.textContent = strings.openFolder;
-  guideButton.textContent = strings.guide;
   emptyOpen.textContent = strings.openFolder;
-  emptyGuide.textContent = strings.guide;
   panelFiles.textContent = strings.files;
   panelOutline.textContent = strings.outline;
   settingsTitle.textContent = strings.settings;
@@ -313,6 +329,14 @@ function applyChromeLanguage(): void {
   sidebarResizerEl.title = strings.resizerHint;
   sidebarToggle.title = strings.showSidebar;
   sidebarToggle.setAttribute('aria-label', strings.showSidebar);
+  terminalTitle.textContent = strings.terminal;
+  terminalToggle.title = strings.terminalOpen;
+  terminalToggle.setAttribute('aria-label', strings.terminalOpen);
+  terminalCollapse.title = strings.terminalCollapse;
+  terminalCollapse.setAttribute('aria-label', strings.terminalCollapse);
+  terminalKill.title = strings.terminalClose;
+  terminalKill.setAttribute('aria-label', strings.terminalClose);
+  terminalResizer.title = strings.terminalResizerHint;
   newEntryButton.title = strings.newEntry;
   mediaPdf.title = strings.pdfPreview;
   // The guide tab keeps its key but wears the current language. The key is a
@@ -793,6 +817,7 @@ function editorOptions(): Parameters<typeof createEditor>[2] {
     highlightCode,
     mode: effectiveMode(),
     onChange: onEditorChange,
+    onLink: followLink,
   };
 }
 
@@ -1348,7 +1373,12 @@ function renderNode(node: TreeNode, depth: number): HTMLElement {
     });
     const summary = document.createElement('summary');
     summary.textContent = node.name;
+    summary.dataset['path'] = node.path;
+    if (state.selectedDir === node.path) summary.classList.add('selected');
     summary.style.paddingLeft = `${depth * 10 + 6}px`;
+    // Clicking a folder both toggles it (the summary's own behaviour) and makes
+    // it the paste target; the highlight is what tells the two apart.
+    summary.addEventListener('click', () => selectDir(node.path));
     summary.addEventListener('contextmenu', (event) =>
       openContextMenu(event, { rel: node.path, name: node.name, isDir: true })
     );
@@ -1371,8 +1401,27 @@ function renderNode(node: TreeNode, depth: number): HTMLElement {
     openContextMenu(event, { rel: node.path, name: node.name, isDir: false })
   );
   if (node.path === state.active) button.classList.add('active');
-  button.addEventListener('click', () => void openFile(node.path));
+  button.addEventListener('click', () => {
+    selectDir(parentOf(node.path));
+    void openFile(node.path);
+  });
   return button;
+}
+
+/** Highlights a folder ('' is the workspace root) as the paste target. */
+function selectDir(path: string): void {
+  state.selectedDir = path;
+  for (const summary of treeEl.querySelectorAll<HTMLElement>('.tree-dir > summary')) {
+    summary.classList.toggle('selected', summary.dataset['path'] === path);
+  }
+}
+
+/** Where a paste lands: the highlighted folder, else the open file's folder. */
+function currentFolder(): string {
+  const wanted = state.selectedDir ?? (state.active ? parentOf(state.active) : '');
+  if (wanted === '') return '';
+  const known = state.entries.some((entry) => entry.isDir && entry.path === wanted);
+  return known ? wanted : '';
 }
 
 /**
@@ -1394,6 +1443,7 @@ async function useWorkspace(root: string, file?: string): Promise<boolean> {
   state.entries = await ws.listFiles(root);
   state.open = [];
   state.active = null;
+  state.selectedDir = '';
   state.unsupported = null;
   state.media = null;
   expandedDirs.clear();
@@ -1469,6 +1519,7 @@ function previewOptions(): Parameters<typeof createEditor>[2] {
     mode: text ? 'source' : 'live',
     readOnly: true,
     revealSelection: false,
+    onLink: followLink,
   };
 }
 
@@ -1479,6 +1530,7 @@ function setMode(mode: Mode): void {
     resolveImage,
     highlightCode,
     revealSelection: true,
+    onLink: followLink,
   });
   previewPane.classList.toggle('hidden', mode !== 'split');
   modeLabel.textContent = mode === 'split' ? t().splitView : t().livePreview;
@@ -1489,6 +1541,48 @@ function setMode(mode: Mode): void {
     syncScroll('editor');
   }
   refreshChrome();
+}
+
+// ---------------------------------------------------------------- links
+
+/**
+ * Follows a link clicked in the rendered document.
+ *
+ * `[text](https://…)` opens the browser, `[text](note.md)` opens a workspace
+ * file (relative to the file that holds the link), and `[text](anchor)` jumps to
+ * `<id:anchor>` in the same document. A target that resolves to none of those
+ * does nothing — a dead link should not turn into an error dialog.
+ */
+function followLink(target: string): void {
+  const doc = activeDoc();
+  if (!doc) return;
+  const resolved = resolveLink(target, {
+    docText: editor.state.doc.toString(),
+    fromRel: doc.rel,
+    files: state.entries.filter((entry) => !entry.isDir).map((entry) => entry.path),
+    root: state.root ?? '',
+  });
+  switch (resolved.kind) {
+    case 'anchor':
+      jumpToAnchor(resolved.id);
+      return;
+    case 'url':
+      void ws.openExternal(resolved.href).catch(() => undefined);
+      return;
+    case 'file':
+      if (resolved.rel !== doc.rel) void openFile(resolved.rel).catch(() => undefined);
+      return;
+    default:
+      return;
+  }
+}
+
+/** Scrolls the editor to `<id:…>`; the caret lands after the marker so it stays hidden. */
+function jumpToAnchor(id: string): void {
+  const marker = `<id:${id}>`;
+  const at = editor.state.doc.toString().indexOf(marker);
+  if (at < 0) return;
+  jumpToPosition(editor, at + marker.length, { focus: true });
 }
 
 // ---------------------------------------------------------------- PDF export
@@ -1732,7 +1826,7 @@ async function deleteTarget(): Promise<void> {
   renderTabs();
 }
 
-async function copyTarget(): Promise<void> {
+async function duplicateTarget(): Promise<void> {
   const target = menuTarget;
   if (!target || !state.root) return;
   const parent = parentOf(target.rel);
@@ -1745,6 +1839,20 @@ async function copyTarget(): Promise<void> {
     return;
   }
   await refreshAfterFileOp();
+  showToast(t().duplicated);
+}
+
+/** Puts the real file on the system clipboard, so Finder and VS Code can paste it. */
+async function copyTargetToSystem(): Promise<void> {
+  const target = menuTarget;
+  if (!target || !state.root) return;
+  const absolute = `${state.root.replace(/[\\/]$/, '')}/${target.rel}`;
+  try {
+    await ws.copyToClipboard([absolute]);
+  } catch (error) {
+    showToast(t().fileOpFailed(String(error)), 'error');
+    return;
+  }
   showToast(t().copied);
 }
 
@@ -1760,12 +1868,60 @@ async function copyTargetPath(): Promise<void> {
   }
 }
 
+/**
+ * Copies files picked up in Finder (or any other app that copies files) into the
+ * highlighted folder. The clipboard is only read after the user pastes, so the
+ * app never touches the pasteboard on its own.
+ */
+async function pasteFromSystem(): Promise<void> {
+  if (!state.root) {
+    showToast(t().noWorkspaceForNew);
+    return;
+  }
+  let paths: string[];
+  try {
+    paths = await ws.clipboardFiles();
+  } catch (error) {
+    showToast(t().fileOpFailed(String(error)), 'error');
+    return;
+  }
+  if (paths.length === 0) {
+    showToast(t().nothingToPaste);
+    return;
+  }
+  const dir = currentFolder();
+  const names = paths.map((path) => path.split(/[\\/]/).filter(Boolean).pop() ?? path);
+  const where = dir || (state.root.split(/[\\/]/).filter(Boolean).pop() ?? state.root);
+  const choice = await showDialog<'paste' | 'cancel'>({
+    title: t().pasteTitle,
+    body: t().pasteBody(names, where),
+    actions: [
+      { label: t().pasteConfirm, value: 'paste', primary: true },
+      { label: t().cancel, value: 'cancel' },
+    ],
+    cancel: 'cancel',
+  });
+  if (choice !== 'paste' || !state.root) return;
+  let created: string[];
+  try {
+    created = await ws.pastePaths(state.root, dir, paths, t().copySuffix);
+  } catch (error) {
+    showToast(t().fileOpFailed(String(error)), 'error');
+    return;
+  }
+  // Show the result even when it landed in a collapsed folder.
+  if (dir) expandedDirs.add(dir);
+  await refreshAfterFileOp();
+  showToast(t().pasted(created.length));
+}
+
 function openContextMenu(event: MouseEvent, entry: { rel: string; name: string; isDir: boolean }): void {
   event.preventDefault();
   menuTarget = entry;
   const items: ReadonlyArray<readonly [string, string, (() => void | Promise<void>) | null, boolean]> = [
     [t().rename, 'rename', () => openRename(entry), false],
-    [t().copy, 'copy', copyTarget, false],
+    [t().duplicate, 'duplicate', duplicateTarget, false],
+    [t().copy, 'copy', copyTargetToSystem, false],
     [t().copyPath, 'copy-path', copyTargetPath, false],
     ['sep', '', null, false],
     [t().deleteAction, 'delete', deleteTarget, true],
@@ -2000,6 +2156,22 @@ async function wireShell(): Promise<void> {
     dropHintEl.classList.add('hidden');
     if (payload.type === 'drop') void handleSystemPaths(payload.paths ?? []);
   });
+
+  // Finder's Copy puts file URLs on the pasteboard; pasting them is a workspace
+  // import, not a text paste. A normal text paste never carries the "Files"
+  // type, so it keeps the native behaviour untouched.
+  document.addEventListener(
+    'paste',
+    (event) => {
+      const data = event.clipboardData;
+      if (!data || !Array.from(data.types).includes('Files')) return;
+      if (terminal?.isOpen() && terminalPanel.contains(document.activeElement)) return;
+      event.preventDefault();
+      if (document.querySelector('.modal-backdrop:not(.hidden)')) return;
+      void pasteFromSystem();
+    },
+    { capture: true }
+  );
 }
 
 // ---------------------------------------------------------------- wiring
@@ -2027,9 +2199,75 @@ function showGuide(): void {
 }
 
 openFolderButton.addEventListener('click', () => void chooseFolder());
-guideButton.addEventListener('click', showGuide);
+
+// ---------------------------------------------------------------- terminal
+
+/** Hides the pane but keeps the shell's process alive. */
+function collapseTerminal(): void {
+  terminal?.collapse();
+  terminalResizer.classList.add('hidden');
+  editor.focus();
+}
+
+/** Kills the shell, clears the buffer and hides the pane. */
+async function closeTerminal(): Promise<void> {
+  await terminal?.close();
+  terminalResizer.classList.add('hidden');
+  editor.focus();
+}
+
+async function toggleTerminal(): Promise<void> {
+  if (!terminal) return;
+  if (terminal.isOpen()) {
+    collapseTerminal();
+    return;
+  }
+  if (!state.root) {
+    showToast(t().noWorkspaceForNew);
+    return;
+  }
+  // "Current directory": the highlighted folder, else the workspace root.
+  const dir = currentFolder();
+  const cwd = dir ? `${state.root}/${dir}` : state.root;
+  try {
+    await terminal.open(cwd);
+    terminalResizer.classList.remove('hidden');
+  } catch (error) {
+    terminal.collapse();
+    terminalResizer.classList.add('hidden');
+    showToast(t().terminalFailed(String(error)), 'error');
+  }
+}
+
+terminalToggle.addEventListener('click', () => void toggleTerminal());
+terminalCollapse.addEventListener('click', collapseTerminal);
+terminalKill.addEventListener('click', () => void closeTerminal());
+// A browser tab has no shell to talk to, so the button is not offered there.
+if (!ws.isDesktopShell) terminalToggle.classList.add('hidden');
+
+let terminalDrag: { y: number; height: number } | null = null;
+terminalResizer.addEventListener('pointerdown', (event) => {
+  if (terminalPanel.classList.contains('hidden')) return;
+  event.preventDefault();
+  terminalResizer.setPointerCapture(event.pointerId);
+  terminalDrag = { y: event.clientY, height: terminalPanel.getBoundingClientRect().height };
+});
+terminalResizer.addEventListener('pointermove', (event) => {
+  if (!terminalDrag) return;
+  const height = Math.min(
+    Math.max(120, terminalDrag.height + (terminalDrag.y - event.clientY)),
+    window.innerHeight * 0.7
+  );
+  terminalPanel.style.height = `${height}px`;
+});
+const endTerminalDrag = (): void => {
+  if (!terminalDrag) return;
+  terminalDrag = null;
+  terminal?.refresh();
+};
+terminalResizer.addEventListener('pointerup', endTerminalDrag);
+terminalResizer.addEventListener('pointercancel', endTerminalDrag);
 emptyOpen.addEventListener('click', () => void chooseFolder());
-emptyGuide.addEventListener('click', showGuide);
 panelFiles.addEventListener('click', () => setPanel('files'));
 panelOutline.addEventListener('click', () => setPanel('outline'));
 

@@ -11,6 +11,8 @@ InkLet 打包了以下第三方代码。这里列出**直接运行时依赖**；
 | @mathjax/mathjax-newcm-font | 4.1.3 | Apache-2.0（字体为 CC-BY-4.0 / OFL 组合，见上游） |
 | @lezer/markdown | 1.8.1 | MIT |
 | @lezer/common | 1.x | MIT |
+| @xterm/xterm | 6.0.0 | MIT |
+| @xterm/addon-fit | 0.11.0 | MIT |
 | yaml | 2.x | ISC |
 
 ## Rust
@@ -18,6 +20,7 @@ InkLet 打包了以下第三方代码。这里列出**直接运行时依赖**；
 | 组件 | 版本 | 许可 |
 |---|---|---|
 | tauri / tauri-build / wry / tao | 2.x | MIT 或 Apache-2.0 |
+| portable-pty | 0.9 | MIT |
 
 ## 待办
 

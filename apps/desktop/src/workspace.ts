@@ -172,6 +172,35 @@ export async function renameEntry(root: string, rel: string, to: string): Promis
   await invoke('rename_entry', { root, rel, to });
 }
 
+/** Files and folders currently on the system clipboard, as absolute paths. */
+export async function clipboardFiles(): Promise<string[]> {
+  if (!isTauri) throw new Error(NO_FS);
+  return invoke<string[]>('clipboard_files');
+}
+
+/** Opens an http(s)/mailto link in the system browser. */
+export async function openExternal(url: string): Promise<void> {
+  if (!isTauri) throw new Error(NO_FS);
+  await invoke('open_external', { url });
+}
+
+/** Puts files on the system clipboard so Finder, VS Code etc. can paste them. */
+export async function copyToClipboard(paths: string[]): Promise<void> {
+  if (!isTauri) throw new Error(NO_FS);
+  await invoke('copy_files', { paths });
+}
+
+/** Copies clipboard paths into `relDir` and returns the workspace paths created. */
+export async function pastePaths(
+  root: string,
+  relDir: string,
+  paths: string[],
+  copySuffix: string
+): Promise<string[]> {
+  if (!isTauri) throw new Error(NO_FS);
+  return invoke<string[]>('paste_paths', { root, relDir, paths, copySuffix });
+}
+
 export async function writeFile(
   root: string,
   rel: string,

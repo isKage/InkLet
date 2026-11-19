@@ -177,7 +177,7 @@ body {
   gap: 9px;
 }
 
-/* White rounded square with a rounded monospace "IL" — the app's only mark. */
+/* White rounded square carrying the app mark: "IL" plus the grey K stroke. */
 /* The mark is an <svg> sharing the app icon's geometry (see index.html). */
 .mark-defs {
   position: absolute;
@@ -478,6 +478,13 @@ body.resizing {
   font-weight: 600;
 }
 
+/* The folder a paste lands in. */
+.tree-dir > summary.selected {
+  background: var(--ink-src-bg);
+  color: var(--ink-fg);
+  border-radius: 4px;
+}
+
 .tree-file {
   display: block;
   width: 100%;
@@ -621,6 +628,130 @@ body.resizing {
   min-height: 0;
   overflow: hidden;
   background: var(--ink-paper);
+}
+
+/* ---------- terminal ---------- */
+
+/* The drag strip sits on the pane border; it only shows itself on hover. */
+.terminal-resize {
+  flex: none;
+  height: 6px;
+  margin-bottom: -3px;
+  position: relative;
+  z-index: 3;
+  cursor: row-resize;
+  background: transparent;
+}
+
+.terminal-resize:hover,
+.terminal-resize:active {
+  background: var(--ink-line);
+}
+
+.terminal-resize.hidden {
+  display: none;
+}
+
+.terminal-panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  height: 260px;
+  min-height: 120px;
+  border-top: 1px solid var(--ink-line);
+  background: var(--ink-paper);
+}
+
+.terminal-panel.hidden {
+  display: none;
+}
+
+.terminal-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 8px 0 12px;
+  background: var(--ink-chrome);
+  border-bottom: 1px solid var(--ink-line);
+  user-select: none;
+}
+
+.terminal-title {
+  flex: none;
+  color: var(--ink-fg);
+  font: 600 12px/1 var(--ink-sans);
+  letter-spacing: 0.01em;
+}
+
+.terminal-cwd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font: 11.5px/1 var(--ink-sans);
+}
+
+.terminal-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.term-btn {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.term-btn:hover {
+  background: var(--ink-hover);
+  color: var(--ink-fg);
+}
+
+.term-btn svg,
+.term-glyph {
+  width: 14px;
+  height: 14px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.term-glyph {
+  width: 15px;
+  height: 15px;
+}
+
+.terminal-host {
+  flex: 1;
+  min-height: 0;
+  padding: 6px 10px 8px;
+  overflow: hidden;
+}
+
+.terminal-host .xterm {
+  height: 100%;
+}
+
+/* xterm paints its viewport black by default. The rendered rows rarely fill the
+   pane exactly, so the leftover pixels at the bottom showed as a black strip;
+   paint the viewport with the pane colour instead. */
+.terminal-host .xterm-viewport {
+  background-color: var(--ink-paper) !important;
 }
 
 .editor-host,

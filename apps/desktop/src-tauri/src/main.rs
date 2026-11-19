@@ -13,6 +13,8 @@ use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
+mod terminal;
+
 /// FNV-1a: a fast change detector, not a security primitive.
 pub fn fingerprint(bytes: &[u8]) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -302,6 +304,197 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Files and folders sitting on the system clipboard.
+///
+/// Only `public.file-url` items are read: that is the shape Finder's Copy puts
+/// on the pasteboard, and the same shape the tree's 复制 command writes, so the
+/// two directions see each other. Other platforms have no implementation yet;
+/// the paste is refused instead of pasting something unexpected.
+fn clipboard_file_paths() -> Result<Vec<String>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let pasteboard = objc2_app_kit::NSPasteboard::generalPasteboard();
+        Ok(read_file_urls(&pasteboard))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("当前平台暂不支持读取系统文件剪贴板".to_string())
+    }
+}
+
+/// Reads the file URLs from one pasteboard (general, or a private one in tests).
+#[cfg(target_os = "macos")]
+fn read_file_urls(pasteboard: &objc2_app_kit::NSPasteboard) -> Vec<String> {
+    use objc2_app_kit::NSPasteboardTypeFileURL;
+    use objc2_foundation::{NSString, NSURL};
+
+    let file_url_type = unsafe { NSPasteboardTypeFileURL };
+    let mut paths = Vec::new();
+    if let Some(items) = pasteboard.pasteboardItems() {
+        for item in items.iter() {
+            let Some(url_string) = item.stringForType(file_url_type) else {
+                continue;
+            };
+            let Some(url) = NSURL::URLWithString(&NSString::from_str(&url_string.to_string())) else {
+                continue;
+            };
+            let Some(path) = url.path() else {
+                continue;
+            };
+            let path = path.to_string();
+            if !path.is_empty() {
+                paths.push(path);
+            }
+        }
+    }
+    paths
+}
+
+/// Puts file URLs on the system clipboard, the way Finder's Copy does, so the
+/// files can be pasted in Finder, VS Code and anything else that accepts files.
+fn set_clipboard_file_paths(paths: &[String]) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let pasteboard = objc2_app_kit::NSPasteboard::generalPasteboard();
+        write_file_urls(&pasteboard, paths)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = paths;
+        Err("当前平台暂不支持写入系统文件剪贴板".to_string())
+    }
+}
+
+/// Writes file URLs to one pasteboard (general, or a private one in tests).
+#[cfg(target_os = "macos")]
+fn write_file_urls(
+    pasteboard: &objc2_app_kit::NSPasteboard,
+    paths: &[String],
+) -> Result<(), String> {
+    use objc2::rc::Retained;
+    use objc2::runtime::ProtocolObject;
+    use objc2_app_kit::{
+        NSPasteboardItem, NSPasteboardTypeFileURL, NSPasteboardWriting,
+    };
+    use objc2_foundation::{NSArray, NSString, NSURL};
+
+    if paths.is_empty() {
+        return Err("没有可复制的文件".to_string());
+    }
+    let file_url_type = unsafe { NSPasteboardTypeFileURL };
+    pasteboard.clearContents();
+    let mut items: Vec<Retained<NSPasteboardItem>> = Vec::new();
+    for path in paths {
+        let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+        let Some(absolute) = url.absoluteString() else {
+            continue;
+        };
+        let item = NSPasteboardItem::new();
+        if item.setString_forType(&absolute, file_url_type) {
+            items.push(item);
+        }
+    }
+    if items.is_empty() {
+        return Err("没有可复制的文件".to_string());
+    }
+    let objects: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> =
+        items.into_iter().map(ProtocolObject::from_retained).collect();
+    if pasteboard.writeObjects(&NSArray::from_retained_slice(&objects)) {
+        Ok(())
+    } else {
+        Err("写入系统剪贴板失败".to_string())
+    }
+}
+
+/// Files currently on the clipboard, for the paste handler in the frontend.
+#[tauri::command]
+fn clipboard_files() -> Result<Vec<String>, String> {
+    clipboard_file_paths()
+}
+
+/// Copies workspace files to the system clipboard (context menu → 复制).
+#[tauri::command]
+fn copy_files(paths: Vec<String>) -> Result<(), String> {
+    set_clipboard_file_paths(&paths)
+}
+
+/// Copies files or folders picked up elsewhere into `rel_dir` of the workspace.
+///
+/// Nothing is ever overwritten: a name that already exists gets the same
+/// "副本" suffix the Duplicate command uses, counting up as needed.
+#[tauri::command]
+fn paste_paths(
+    root: String,
+    rel_dir: String,
+    paths: Vec<String>,
+    copy_suffix: String,
+) -> Result<Vec<String>, String> {
+    let target_dir = resolve(&root, &rel_dir)?;
+    if !target_dir.is_dir() {
+        return Err("目标路径不是文件夹".to_string());
+    }
+    let suffix = copy_suffix.trim().replace(['/', '\\'], "-");
+    let suffix = if suffix.is_empty() { "副本".to_string() } else { suffix };
+    let mut created = Vec::new();
+    for raw in paths {
+        let source = fs::canonicalize(&raw).map_err(|error| format!("{raw}：{error}"))?;
+        if !source.is_file() && !source.is_dir() {
+            continue;
+        }
+        let name = source
+            .file_name()
+            .ok_or_else(|| format!("{} 没有文件名", source.display()))?
+            .to_string_lossy()
+            .to_string();
+        let rel = unique_relative(&root, &rel_dir, &name, &suffix)?;
+        let target = resolve(&root, &rel)?;
+        // Pasting a folder into one of its own subfolders would recurse forever.
+        if target.starts_with(&source) {
+            return Err("不能把文件夹复制到它自己里面".to_string());
+        }
+        if source.is_dir() {
+            copy_dir(&source, &target).map_err(|error| format!("{}：{error}", source.display()))?;
+        } else {
+            fs::copy(&source, &target).map_err(|error| format!("{}：{error}", source.display()))?;
+        }
+        created.push(rel);
+    }
+    if created.is_empty() {
+        return Err("没有可粘贴的文件".to_string());
+    }
+    Ok(created)
+}
+
+/// Picks the first free name for `name` inside `dir`: the name itself, then
+/// "note 副本.md", "note 副本 2.md", …
+fn unique_relative(root: &str, dir: &str, name: &str, suffix: &str) -> Result<String, String> {
+    for attempt in 0..1000 {
+        let candidate = if attempt == 0 {
+            name.to_string()
+        } else {
+            numbered_copy_name(name, suffix, attempt)
+        };
+        let rel = if dir.is_empty() { candidate } else { format!("{dir}/{candidate}") };
+        if !resolve(root, &rel)?.exists() {
+            return Ok(rel);
+        }
+    }
+    Err("同名文件太多".to_string())
+}
+
+/// "note.md" → "note 副本.md" (attempt 1) → "note 副本 2.md" (attempt 2).
+fn numbered_copy_name(name: &str, suffix: &str, attempt: usize) -> String {
+    let (base, extension) = match name.rfind('.') {
+        Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+        _ => (name, ""),
+    };
+    if attempt == 1 {
+        format!("{base} {suffix}{extension}")
+    } else {
+        format!("{base} {suffix} {attempt}{extension}")
+    }
+}
+
 #[tauri::command]
 fn rename_entry(root: String, rel: String, to: String) -> Result<String, String> {
     let source = resolve(&root, &rel)?;
@@ -470,7 +663,7 @@ fn build_menu(app: &AppHandle<Wry>, lang: &str) -> tauri::Result<Menu<Wry>> {
             &action(app, "para:ul", l(lang, "无序列表", "Bullet List"), None)?,
             &action(app, "para:ol", l(lang, "有序列表", "Numbered List"), None)?,
             &action(app, "para:task", l(lang, "任务列表", "Task List"), None)?,
-            &action(app, "para:quote", l(lang, "引用", "Quote"), None)?,
+            &action(app, "para:quote", l(lang, "注释", "Comment"), None)?,
             &PredefinedMenuItem::separator(app)?,
             &action(
                 app,
@@ -656,6 +849,42 @@ fn find_browser() -> Option<PathBuf> {
 /// The webview cannot print on macOS, so a headless Chrome/Edge does the layout.
 /// The HTML is self-contained (maths is inline SVG, images are data URIs), so no
 /// server or extra file is needed.
+/// Opens an http(s)/mailto link in the user's browser.
+///
+/// Only those schemes are allowed: a link inside a document must not be able to
+/// run a local program, or hand the system an arbitrary `file:` path.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    let target = url.trim();
+    let lower = target.to_ascii_lowercase();
+    if !(lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || lower.starts_with("mailto:"))
+    {
+        return Err("只允许 http、https 与 mailto 链接".to_string());
+    }
+    match shell_open(target) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err("系统未能打开这个链接".to_string()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn shell_open(target: &str) -> std::io::Result<bool> {
+    Ok(Command::new("open").arg(target).status()?.success())
+}
+
+#[cfg(target_os = "windows")]
+fn shell_open(target: &str) -> std::io::Result<bool> {
+    Ok(Command::new("cmd").args(["/C", "start", "", target]).status()?.success())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn shell_open(target: &str) -> std::io::Result<bool> {
+    Ok(Command::new("xdg-open").arg(target).status()?.success())
+}
+
 #[tauri::command]
 fn export_pdf(html: String, path: String) -> Result<String, String> {
     let browser = find_browser().ok_or_else(|| {
@@ -764,6 +993,7 @@ fn main() {
         .manage(CloseGuard::new())
         .manage(UiLanguage(Mutex::new("zh".to_string())))
         .manage(PendingOpen(Mutex::new(Vec::new())))
+        .manage(terminal::Terminals::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.state::<CloseGuard>().blocks_window(window.label()) {
@@ -779,6 +1009,9 @@ fn main() {
             create_entry,
             delete_entry,
             copy_entry,
+            clipboard_files,
+            copy_files,
+            paste_paths,
             rename_entry,
             read_image,
             set_unsaved,
@@ -788,7 +1021,12 @@ fn main() {
             set_language,
             export_pdf,
             resolve_open_target,
-            take_pending_open
+            take_pending_open,
+            open_external,
+            terminal::terminal_open,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_close
         ])
         .build(tauri::generate_context!())
         .expect("failed to build InkLet");
@@ -1085,5 +1323,113 @@ mod tests {
         assert!(paths.contains(&"image.png"), "got {paths:?}");
         assert!(!paths.iter().any(|path| path.contains("node_modules")));
         assert!(!paths.iter().any(|path| path.contains(".hidden")));
+    }
+
+    #[test]
+    fn pastes_files_into_the_workspace_and_never_overwrites() {
+        let sandbox = Sandbox::new();
+        // The clipboard holds a path from outside the folder being pasted into.
+        sandbox.write("clipboard/outside.md", "from the clipboard");
+        let source = sandbox.0.join("clipboard/outside.md");
+
+        let first = paste_paths(
+            sandbox.root(),
+            String::new(),
+            vec![source.to_string_lossy().to_string()],
+            "副本".to_string(),
+        )
+        .unwrap();
+        assert_eq!(first, vec!["outside.md".to_string()]);
+        assert_eq!(fs::read_to_string(sandbox.0.join("outside.md")).unwrap(), "from the clipboard");
+
+        let second = paste_paths(
+            sandbox.root(),
+            String::new(),
+            vec![source.to_string_lossy().to_string()],
+            "副本".to_string(),
+        )
+        .unwrap();
+        assert_eq!(second, vec!["outside 副本.md".to_string()]);
+        assert!(sandbox.0.join("outside 副本.md").is_file());
+    }
+
+    #[test]
+    fn pastes_a_folder_recursively_into_the_selected_folder() {
+        let sandbox = Sandbox::new();
+        sandbox.write("papers/existing.md", "# keep");
+        let source = sandbox.0.join("incoming");
+        fs::create_dir_all(source.join("chapter")).unwrap();
+        fs::write(source.join("draft.md"), "# draft").unwrap();
+        fs::write(source.join("chapter/one.md"), "# one").unwrap();
+
+        let created = paste_paths(
+            sandbox.root(),
+            "papers".to_string(),
+            vec![source.to_string_lossy().to_string()],
+            "副本".to_string(),
+        )
+        .unwrap();
+        assert_eq!(created, vec!["papers/incoming".to_string()]);
+        assert_eq!(
+            fs::read_to_string(sandbox.0.join("papers/incoming/chapter/one.md")).unwrap(),
+            "# one"
+        );
+        // A later paste of the same folder lands beside it instead of merging.
+        let again = paste_paths(
+            sandbox.root(),
+            "papers".to_string(),
+            vec![source.to_string_lossy().to_string()],
+            "副本".to_string(),
+        )
+        .unwrap();
+        assert_eq!(again, vec!["papers/incoming 副本".to_string()]);
+        assert!(sandbox.0.join("papers/incoming 副本").is_dir());
+    }
+
+    #[test]
+    fn refuses_to_paste_a_folder_into_itself() {
+        let sandbox = Sandbox::new();
+        sandbox.write("papers/a.md", "# a");
+        let error = paste_paths(
+            sandbox.root(),
+            "papers".to_string(),
+            vec![sandbox.0.to_string_lossy().to_string()],
+            "副本".to_string(),
+        )
+        .unwrap_err();
+        assert!(error.contains("自己"), "{error}");
+    }
+
+    #[test]
+    fn only_http_mailto_links_are_followed() {
+        assert!(open_external("javascript:alert(1)".to_string()).is_err());
+        assert!(open_external("file:///etc/passwd".to_string()).is_err());
+        assert!(open_external("   ".to_string()).is_err());
+    }
+
+    #[test]
+    fn copy_names_count_up_and_keep_the_extension() {
+        assert_eq!(numbered_copy_name("note.md", "副本", 1), "note 副本.md");
+        assert_eq!(numbered_copy_name("note.md", "副本", 2), "note 副本 2.md");
+        assert_eq!(numbered_copy_name("papers", "副本", 1), "papers 副本");
+        assert_eq!(numbered_copy_name(".env", "副本", 1), ".env 副本");
+    }
+
+    /// Uses a private pasteboard, never the general one: the test must not
+    /// overwrite whatever the person running it has on their clipboard.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn file_urls_round_trip_on_a_private_pasteboard() {
+        use objc2_app_kit::NSPasteboard;
+        use objc2_foundation::NSString;
+
+        let pasteboard = NSPasteboard::pasteboardWithName(&NSString::from_str("inklet-test"));
+        let paths = vec![
+            "/tmp/inklet 剪贴板 test.md".to_string(),
+            "/tmp/folder with spaces".to_string(),
+        ];
+        write_file_urls(&pasteboard, &paths).unwrap();
+        assert_eq!(read_file_urls(&pasteboard), paths);
+        pasteboard.clearContents();
     }
 }

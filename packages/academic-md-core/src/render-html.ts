@@ -132,11 +132,30 @@ function renderInlineNode(ctx: RenderContext, node: SyntaxNode): string {
     return renderMathTex(ctx, extractMathSource(doc.src, node), false);
   }
 
-  if (name === 'Link' || name === 'Image') {
+  if (name === 'Link') {
     const inner = linkTextRange(doc, node) ?? { from: node.from, to: node.to };
     const text = renderInlineRange(ctx, node, inner.from, inner.to);
-    if (name === 'Link') return `<span class="link">${text}</span>`;
+    const urlNode = children(node).find((child) => child.name === 'URL');
+    const target = urlNode ? doc.src.slice(urlNode.from, urlNode.to).trim() : '';
+    if (!target) return `<span class="link">${text}</span>`;
+    return `<a class="link" href="${escapeHTML(target)}">${text}</a>`;
+  }
 
+  if (name === 'Autolink') {
+    const raw = doc.src.slice(node.from, node.to);
+    // `<id:xxx>` is the in-document anchor marker: an empty anchor at that
+    // point, so exported HTML/PDF can jump to it too.
+    const marker = /^<id:([^>]+)>$/.exec(raw);
+    if (marker?.[1]) return `<a class="anchor" id="${escapeHTML(marker[1])}"></a>`;
+    const urlNode = children(node).find((child) => child.name === 'URL');
+    const target = urlNode ? doc.src.slice(urlNode.from, urlNode.to).trim() : '';
+    if (!target) return '';
+    return `<a class="link" href="${escapeHTML(target)}">${escapeHTML(target)}</a>`;
+  }
+
+  if (name === 'Image') {
+    const inner = linkTextRange(doc, node) ?? { from: node.from, to: node.to };
+    const text = renderInlineRange(ctx, node, inner.from, inner.to);
     const urlNode = children(node).find((child) => child.name === 'URL');
     const target = urlNode ? doc.src.slice(urlNode.from, urlNode.to) : '';
     const label = text.trim() || target;

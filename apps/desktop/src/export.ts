@@ -27,6 +27,9 @@ code { font-family: "SF Mono", Menlo, monospace; font-size: 0.92em; }
 table { border-collapse: collapse; margin: 1em auto; font-size: 10.5pt; page-break-inside: avoid; }
 th, td { border: 1px solid #d8d8de; padding: 4px 10px; }
 th { background: #f5f5f7; }
+blockquote { margin: 0.8em 0; padding: 7px 14px; border-left: 3px solid #d8d8de;
+  background: #f5f5f7; border-radius: 4px; color: #3a3a44; }
+blockquote p { margin: 0.25em 0; }
 img { max-width: 100%; }
 .image-placeholder { color: #55555f; font-style: italic; }
 ${highlightCssText()}

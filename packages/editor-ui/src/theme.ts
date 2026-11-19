@@ -163,6 +163,47 @@ export const theme = EditorView.theme({
     borderRadius: '3px',
     padding: '0 3px',
   },
+  // A rendered link: the URL is hidden, the text keeps the link colour and a
+  // pointer cursor so it reads as clickable.
+  '.ink-link': {
+    color: 'var(--ink-link, #1556a3)',
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+    cursor: 'pointer',
+  },
+  '.ink-link:hover': {
+    backgroundColor: 'var(--ink-src-bg, rgba(168, 121, 47, 0.1))',
+    borderRadius: '2px',
+  },
+  // A reference to an identifier that occurs more than once: the link still
+  // works (and jumps to the first marker), the yellow wave only warns.
+  '.ink-dup': {
+    textDecoration: 'underline wavy #d9a400',
+    textUnderlineOffset: '3px',
+  },
+  // `<id:xxx>` stays visible, quietly, so it can be read and edited.
+  '.ink-anchor': {
+    color: 'var(--ink-muted, #64646f)',
+    opacity: '0.62',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: '0.86em',
+  },
+
+  // Comment blocks (`> …`). The `>` is hidden, the text sits in a grey box;
+  // `background-clip: content-box` keeps the box aligned with the text column
+  // instead of running to the pane edges.
+  '.ink-comment': {
+    backgroundColor: 'var(--ink-code-bg, #f3f3f6)',
+    backgroundClip: 'content-box',
+  },
+  '.ink-comment-first': {
+    borderTopLeftRadius: '6px',
+    borderTopRightRadius: '6px',
+  },
+  '.ink-comment-last': {
+    borderBottomLeftRadius: '6px',
+    borderBottomRightRadius: '6px',
+  },
 
   // Tables (rendered by the same code the export uses)
   // Same inset as the code block: tables align with the text column.

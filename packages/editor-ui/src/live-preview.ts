@@ -56,6 +56,57 @@ const highlightFacet = Facet.define<HighlightCode | undefined, HighlightCode | u
   combine: (values) => values[0],
 });
 
+/**
+ * What a click on a rendered link should do. Owned by the host app: the editor
+ * only knows the target string, not what a URL or a workspace path means.
+ */
+const linkHandlerFacet = Facet.define<
+  ((target: string) => void) | undefined,
+  ((target: string) => void) | undefined
+>({
+  combine: (values) => values[0],
+});
+
+function linkElementOf(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest<HTMLElement>('[data-ink-href]');
+}
+
+/**
+ * Rendering a link must not get in the way of editing it: a plain click puts
+ * the caret in as usual (and the source reappears), while Cmd/Ctrl+click
+ * follows the link. Exported HTML/PDF keeps the plain-click behaviour.
+ *
+ * `mousedown` is intercepted for the follow click: letting the caret land
+ * inside would reveal `[text](url)` and remove the element under the pointer
+ * before `click` could fire.
+ */
+function followModifier(event: MouseEvent): boolean {
+  return event.metaKey || event.ctrlKey;
+}
+
+const linkClicks = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    if (event.button !== 0 || !followModifier(event)) return false;
+    // Without a handler the link is inert, so let the click place the caret.
+    if (!view.state.facet(linkHandlerFacet)) return false;
+    if (!linkElementOf(event.target)) return false;
+    event.preventDefault();
+    return true;
+  },
+  click(event, view) {
+    if (!followModifier(event)) return false;
+    const follow = view.state.facet(linkHandlerFacet);
+    if (!follow) return false;
+    const element = linkElementOf(event.target);
+    if (!element) return false;
+    event.preventDefault();
+    const target = element.dataset['inkHref'];
+    if (target) follow(target);
+    return true;
+  },
+});
+
 const BULLETS = ['•', '◦', '▪'] as const;
 
 /**
@@ -228,6 +279,31 @@ function buildDecorations(state: EditorState, parsed: ParsedDocument): Decoratio
   const ranges = state.selection.ranges;
   const isRevealed = (from: number, to: number): boolean =>
     revealSelection && revealsSource(ranges, from, to);
+  /**
+   * The span that counts as "the link is still being written".
+   *
+   * A half-typed `[label](` already parses as a link that stops at `]`, so the
+   * bracket would collapse while the URL is being typed. When the next character
+   * is `(` and the link has no closing `)` yet, the span extends to the end of
+   * the line so the whole unfinished link stays on screen.
+   */
+  const linkSpan = (node: SyntaxNode): { from: number; to: number } => {
+    const raw = slice(node.from, node.to);
+    if (raw.endsWith(')')) return { from: node.from, to: node.to };
+    if (slice(node.to, Math.min(node.to + 1, doc.length)) !== '(') {
+      return { from: node.from, to: node.to };
+    }
+    return { from: node.from, to: doc.lineAt(node.to).to };
+  };
+  /**
+   * Links keep their source while the caret is inside them, including at the
+   * very end (right after `)`) so finishing the link does not make the brackets
+   * vanish under the cursor. The start is exclusive: the caret before `[`
+   * belongs to the preceding text.
+   */
+  const isLinkActive = (from: number, to: number): boolean =>
+    revealSelection && ranges.some((range) => range.from <= to && range.to > from);
+  const anchors = anchorIdCounts(parsed.src);
   const isBlockRevealed = (from: number, to: number): boolean =>
     revealSelection && revealsBlockSource(ranges, from, to);
   const hide = (from: number, to: number): void => {
@@ -386,6 +462,15 @@ function buildDecorations(state: EditorState, parsed: ParsedDocument): Decoratio
           return false;
         }
 
+        case 'QuoteMark': {
+          if (onMarkerLine(node.from, node.to)) {
+            markMarkup(node.from, node.to);
+            return false;
+          }
+          hide(node.from, node.to);
+          return false;
+        }
+
         case 'TaskMarker': {
           if (onMarkerLine(node.from, node.to)) {
             markMarkup(node.from, node.to);
@@ -395,6 +480,59 @@ function buildDecorations(state: EditorState, parsed: ParsedDocument): Decoratio
           decorations.push(
             Decoration.replace({ widget: new TaskMarkerWidget(checked) }).range(node.from, node.to)
           );
+          return false;
+        }
+
+        case 'Link': {
+          const span = linkSpan(node);
+          if (isLinkActive(span.from, span.to)) return false;
+          const kids = [...childrenOf(node)];
+          const marks = kids.filter((child) => child.name === 'LinkMark');
+          const urlNode = kids.find((child) => child.name === 'URL');
+          if (marks.length < 2) return false;
+          const textFrom = (marks[0] as SyntaxNode).to;
+          const textTo = (marks[1] as SyntaxNode).from;
+          const target = urlNode ? slice(urlNode.from, urlNode.to).trim() : '';
+          if (target && textTo > textFrom) {
+            decorations.push(
+              Decoration.mark({
+                class: 'ink-link',
+                attributes: { 'data-ink-href': target, title: target },
+              }).range(textFrom, textTo)
+            );
+          }
+          hide(node.from, textFrom);
+          hide(textTo, node.to);
+          return false;
+        }
+
+        case 'Autolink': {
+          const raw = slice(node.from, node.to);
+          // `<id:xxx>` is the in-document anchor marker. It stays on screen in
+          // a quiet grey so it can be read and edited like normal text.
+          if (/^<id:[^>]+>$/.test(raw)) {
+            const id = raw.slice(4, -1);
+            const duplicated = (anchors.get(id) ?? 0) > 1;
+            decorations.push(
+              Decoration.mark({
+                class: duplicated ? 'ink-anchor ink-dup' : 'ink-anchor',
+              }).range(node.from, node.to)
+            );
+            return false;
+          }
+          if (isLinkActive(node.from, node.to)) return false;
+          const urlNode = [...childrenOf(node)].find((child) => child.name === 'URL');
+          if (!urlNode) return false;
+          const target = slice(urlNode.from, urlNode.to).trim();
+          if (!target) return false;
+          decorations.push(
+            Decoration.mark({
+              class: 'ink-link',
+              attributes: { 'data-ink-href': target, title: target },
+            }).range(urlNode.from, urlNode.to)
+          );
+          hide(node.from, urlNode.from);
+          hide(urlNode.to, node.to);
           return false;
         }
 
@@ -540,6 +678,26 @@ function buildDecorations(state: EditorState, parsed: ParsedDocument): Decoratio
     },
   });
 
+  // Comment blocks (`> …`): every line gets the grey box, first and last carry
+  // the rounded corners. Lines replaced by a block widget (maths, code) are
+  // skipped: a line decoration inside a block replacement would overlap it.
+  parsed.tree.iterate({
+    enter(ref) {
+      if (ref.name !== 'Blockquote') return undefined;
+      const first = doc.lineAt(ref.from).number;
+      const last = doc.lineAt(ref.to).number;
+      for (let n = first; n <= last; n += 1) {
+        const line = doc.line(n);
+        if (insideBlock(line.from)) continue;
+        const classes = ['ink-comment'];
+        if (n === first) classes.push('ink-comment-first');
+        if (n === last) classes.push('ink-comment-last');
+        decorations.push(Decoration.line({ class: classes.join(' ') }).range(line.from));
+      }
+      return false;
+    },
+  });
+
   // Hanging indent for list items.
   //
   // Source indentation is hidden and replaced by padding computed from the list
@@ -626,6 +784,19 @@ function buildDecorations(state: EditorState, parsed: ParsedDocument): Decoratio
   return Decoration.set(decorations, true);
 }
 
+/**
+ * Counts the `<id:…>` markers in `src`. A reference to an identifier that
+ * appears more than once is flagged (and still jumps to the first one).
+ */
+export function anchorIdCounts(src: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const match of src.matchAll(/<id:([^>\s]+)>/g)) {
+    const id = match[1] as string;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 /** The parsed document behind a live-preview editor (for diagnostics, chips, …). */
 export function findParsedDocument(state: EditorState): ParsedDocument | undefined {
   return state.field(previewField, false)?.parsed;
@@ -640,6 +811,8 @@ export interface LivePreviewOptions {
   readonly resolveImage?: ImageResolver;
   /** Syntax highlighting for fenced code; without it blocks stay plain. */
   readonly highlightCode?: HighlightCode;
+  /** Follows a clicked link; without it links are styled but inert. */
+  readonly onLink?: (target: string) => void;
 }
 
 export const livePreviewTheme = theme;
@@ -650,6 +823,8 @@ export function livePreview(options: LivePreviewOptions): Extension {
     revealFacet.of(options.revealSelection ?? true),
     imageResolverFacet.of(options.resolveImage),
     highlightFacet.of(options.highlightCode),
+    linkHandlerFacet.of(options.onLink),
+    linkClicks,
     previewField,
     theme,
     EditorView.lineWrapping,

@@ -58,7 +58,7 @@
   <body>
     <!--
       The mark, defined once: "IL" plus the grey stroke that turns it into a K.
-      The same path data is the app icon (scripts/brand/mark.svg); only the padding
+      The same path data is the app icon (scripts/assets/mark.svg); only the padding
       differs — the icon carries its own white plate, this one sits in a CSS box.
     -->
     <svg class="mark-defs" aria-hidden="true" focusable="false">
@@ -68,26 +68,29 @@
           d="M238 185a17 17 0 0 1 34 0v123h63a13.5 13.5 0 0 1 0 27h-88a9 9 0 0 1-9-9z"
           fill="currentColor"
         />
-        <clipPath id="inklet-mark-clip">
-          <rect x="208" y="120" width="300" height="280" />
-        </clipPath>
-        <g clip-path="url(#inklet-mark-clip)">
-          <path
-            d="M196 283 320 185"
-            fill="none"
-            style="stroke: var(--inklet-mark-keyline, #fff)"
-            stroke-width="48"
-            stroke-linecap="round"
-          />
-          <path
-            d="M196 283 320 185"
-            fill="none"
-            stroke="currentColor"
-            stroke-opacity="0.24"
-            stroke-width="34"
-            stroke-linecap="round"
-          />
-        </g>
+        <!--
+          The stroke is deliberately not clipped. A clipPath inside a <symbol>
+          that is instantiated through <use> is unreliable in WebKit: Safari and
+          the Tauri WKWebView drop the whole clipped group, which left the mark
+          as a bare "IL". Nothing needs clipping anyway — the I is painted last
+          and covers the stroke's start, and the keyline cap ends on the white
+          plate, so it cannot show past the I.
+        -->
+        <path
+          d="M196 283 320 185"
+          fill="none"
+          style="stroke: var(--inklet-mark-keyline, #fff)"
+          stroke-width="48"
+          stroke-linecap="round"
+        />
+        <path
+          d="M196 283 320 185"
+          fill="none"
+          stroke="currentColor"
+          stroke-opacity="0.24"
+          stroke-width="34"
+          stroke-linecap="round"
+        />
         <!-- I last: it hides the stroke's start -->
         <rect x="175" y="168" width="34" height="169" rx="17" fill="currentColor" />
       </symbol>
@@ -100,7 +103,13 @@
 
       <div class="toolbar">
         <button id="openFolder" class="ghost">选择文件夹</button>
-        <button id="guideButton" class="ghost">指南</button>
+        <button id="terminalToggle" class="ghost icon" title="终端" aria-label="打开终端">
+          <svg class="term-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <rect x="1.7" y="2.7" width="12.6" height="10.6" rx="2.2" />
+            <path d="M4.4 6.3 6.4 8l-2 1.7" />
+            <path d="M8.3 9.7h3.2" />
+          </svg>
+        </button>
         <button id="themeToggle" class="ghost icon" title="切换浅色 / 深色" aria-label="切换主题">☾</button>
       </div>
     </header>
@@ -130,7 +139,6 @@
                 <svg class="empty-mark" aria-hidden="true" focusable="false"><use href="#inklet-mark" /></svg>
                 <div class="empty-actions">
                   <button class="btn primary" id="emptyOpen">选择文件夹</button>
-                  <button class="btn" id="emptyGuide">指南</button>
                 </div>
               </div>
             </div>
@@ -151,6 +159,31 @@
             <div class="preview-host" id="previewHost"></div>
           </div>
         </div>
+
+        <!-- The built-in terminal lives at the bottom of the editor column. -->
+        <div class="terminal-resize hidden" id="terminalResizer" title="拖动调整终端高度"></div>
+        <section class="terminal-panel hidden" id="terminalPanel" aria-label="终端">
+          <header class="terminal-head">
+            <span class="terminal-title" id="terminalTitle">终端</span>
+            <span class="terminal-cwd" id="terminalCwd"></span>
+            <span class="terminal-actions">
+              <button class="term-btn" id="terminalCollapse" title="收起终端" aria-label="收起终端">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+              <button class="term-btn" id="terminalKill" title="关闭终端" aria-label="关闭终端">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path d="M2.6 4.4h10.8" />
+                  <path d="M6.2 4.4V3.1h3.6v1.3" />
+                  <path d="M4.1 4.4l.6 8.4h6.6l.6-8.4" />
+                  <path d="M6.7 6.8v3.7M9.3 6.8v3.7" />
+                </svg>
+              </button>
+            </span>
+          </header>
+          <div class="terminal-host" id="terminalHost"></div>
+        </section>
       </main>
     </div>
 

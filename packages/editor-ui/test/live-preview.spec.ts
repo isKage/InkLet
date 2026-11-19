@@ -4,6 +4,7 @@ import { syntaxTree } from '@codemirror/language';
 import { academicLanguage } from '../src/markdown.js';
 import { parseDocument } from '@inklet/academic-md-core';
 import {
+  anchorIdCounts,
   findParsedDocument,
   livePreview,
   paragraphStartLines,
@@ -76,6 +77,15 @@ describe('live preview state', () => {
   it('reports nothing when the extension is absent', () => {
     const bare = EditorState.create({ doc: 'x' });
     expect(findParsedDocument(bare)).toBeUndefined();
+  });
+});
+
+describe('in-document anchors', () => {
+  it('counts each <id:…> marker so duplicates can be flagged', () => {
+    const counts = anchorIdCounts('a <id:x> b <id:y> c <id:x>');
+    expect(counts.get('x')).toBe(2);
+    expect(counts.get('y')).toBe(1);
+    expect(counts.get('missing')).toBeUndefined();
   });
 });
 

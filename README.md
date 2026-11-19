@@ -1,10 +1,20 @@
+<div align="center">
+
+<img src="apps/desktop/src-tauri/icons/icon.png" width="120" alt="InkLet" />
+
 # InkLet（墨点）
 
-面向学术写作的 Markdown 编辑器。文件就是普通的 `.md`，公式用 LaTeX 写法，写完可以直接导出 PDF。
+**面向学术写作的 Markdown 编辑器：公式照 LaTeX 写，文件仍是普通的 `.md`，写完直接导出 PDF**
 
-它想解决的是 LaTeX 排版能力与 Markdown 写作成本之间的落差：写的时候看到的是排好版的样子，而不是一堆符号。
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Tauri](https://img.shields.io/badge/Tauri-2-24c8db.svg)](https://tauri.app/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](#下载)
+[![Release](https://img.shields.io/github/v/release/isKage/InkLet?display_name=tag&sort=semver)](https://github.com/isKage/InkLet/releases)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg)](https://github.com/isKage/InkLet/pulls)
 
-项目地址：[github.com/isKage/InkLet](https://github.com/isKage/InkLet)
+</div>
+
+InkLet 想解决的是 LaTeX 的排版能力与 Markdown 的写作成本之间的落差：写的时候看到的是排好版的样子，而不是一堆符号。文件就是普通的 `.md`，没有数据库，也不依赖专有格式。
 
 ![编辑器](docs/screenshots/editor-light.png)
 
@@ -13,24 +23,37 @@
 **写作**
 
 - 实时渲染：光标离开标记就渲染成成品样式，回到标记上又变回源码
-- 视图可切换：实时渲染（`⌘1`）或左右对照（`⌘2`）
-- 行内公式 `$…$`，行间公式 `$$…$$` 或 `\[…\]`；在 `$$` 后按回车自动补闭合符
-- 代码块：输入三个反引号后按回车，自动补上结尾的那一行；`⌘⌥C` 选择语言，16 种语言高亮，导出 PDF 时保留
+- 两种视图：实时渲染（`⌘1`）或左右对照（`⌘2`）
+- 数学：行内公式 `$…$`，行间公式 `$$…$$` 或 `\[…\]`；在 `$$` 后按回车会自动补上闭合符，需要编号时写 `\tag{2.1}`
+- 代码块：输入三个反引号后按回车自动补全，`⌘⌥C` 选择语言，16 种语言高亮，导出 PDF 时保留
 - 表格：点单元格直接改，`⌘↵` 加一行
+- 注释：`> ` 开头的行渲染成灰色注释块，适合放旁注和推导提示
+- 链接：`[文字](网址)` 支持省略 `https://`；`[文字](note.md)` 打开工作区里的文件；`<id:xxx>` 做文内锚点，`[文字](#xxx)` 跳转（按住 `⌘` 点击）
 - 大纲按标题跳转，文件树按文件夹管理
+
+**文件**
+
 - 把文件夹或 Markdown 文件拖进窗口，就切换工作区
-- 图片和 PDF 可以在应用里预览
+- 右键文件：创建副本、复制（真实文件进系统剪贴板，可到 Finder / VS Code 粘贴）、复制文件路径、重命名、删除
+- 从 Finder 复制文件或文件夹，回窗口按 `⌘V`，递归粘贴到当前文件夹；同名自动编号，不覆盖
+- 图片和 PDF 可以直接在应用里预览
 
-**外观**
+**界面**
 
-- 四套配色：浅色、暖纸、蓝灰、深色（菜单栏「主题」或设置里切换）
-- 正文字号、行距、段间距、页边距都可以调
+- 四套配色：浅色、暖纸、蓝灰、深色
+- 正文字号、行距、段间距、页边距、界面缩放都可以调
 - 界面语言：中文 / English
+- 内置终端：右上角入口，默认进入当前文件夹；`✕` 收起（进程保留），垃圾桶结束会话，可拖动上沿调整高度
 
 **输出**
 
 - 导出 PDF：先渲染成自包含 HTML，再调用本机的 Chrome 或 Edge 打印
-- 图片、公式、代码高亮都内联进 HTML，导出的是单个文件
+- 图片、公式、代码高亮都内联进 HTML；链接和文内锚点在 PDF 里同样可以点击
+
+<div align="center">
+<img src="docs/screenshots/editor-dark.png" width="49%" alt="深色主题" />
+<img src="docs/screenshots/settings.png" width="49%" alt="设置" />
+</div>
 
 ## 下载
 
@@ -62,13 +85,13 @@ xattr -dr com.apple.quarantine /Applications/InkLet.app
 ```bash
 bash scripts/packaging/install-rust.sh     # 首次；已有 rustup 可跳过
 pnpm install
-pnpm dev:tauri                         # 桌面窗口，带热更新
+pnpm dev:tauri                             # 桌面窗口，带热更新
 ```
 
 只想看界面的话，桌面应用也能跑在浏览器里，此时没有文件系统访问，只有一个内存里的示例工作区：
 
 ```bash
-pnpm --filter @inklet/desktop dev      # http://localhost:5173/#demo
+pnpm --filter @inklet/desktop dev          # http://localhost:5174/#demo
 ```
 
 检查：
@@ -76,7 +99,7 @@ pnpm --filter @inklet/desktop dev      # http://localhost:5173/#demo
 ```bash
 pnpm check              # 类型、lint、单元测试、打包冒烟
 pnpm test:rust          # Rust 侧的命令测试
-pnpm ui:check           # 无头浏览器跑 108 条界面断言并截图
+pnpm ui:check           # 无头浏览器跑界面断言并截图
 ```
 
 ## 打包
@@ -113,6 +136,7 @@ docs/releases             每个版本的发布说明
 - 导出 PDF 依赖本机安装 Chrome 或 Edge
 - 没有文件监视：别的程序改了文件，保存时会提示冲突，需要手动重新载入
 - 每个窗口只能打开一个工作区（文件夹）
+- 内置终端使用系统 shell（macOS 为 `$SHELL`，Windows 为 `COMSPEC`），尚未在 Windows 上充分测试
 
 ## 发布说明
 
@@ -122,4 +146,4 @@ docs/releases             每个版本的发布说明
 
 InkLet 以 [GNU General Public License v3.0](LICENSE) 发布。
 
-用到的第三方组件（Tauri、CodeMirror、MathJax、highlight.js、Lezer 等）许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+用到的第三方组件（Tauri、CodeMirror、MathJax、highlight.js、Lezer、xterm.js 等）许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

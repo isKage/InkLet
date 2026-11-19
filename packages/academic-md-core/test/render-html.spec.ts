@@ -44,6 +44,34 @@ describe('block rendering', () => {
   });
 });
 
+describe('links and anchors', () => {
+  it('renders a link as a real anchor', () => {
+    expect(render('[GPT](https://example.com)')).toContain(
+      '<a class="link" href="https://example.com">GPT</a>'
+    );
+  });
+
+  it('keeps a link without a target as text', () => {
+    expect(render('[label]()')).toContain('<span class="link">label</span>');
+  });
+
+  it('renders autolinks', () => {
+    expect(render('<https://example.com/x>')).toContain(
+      '<a class="link" href="https://example.com/x">https://example.com/x</a>'
+    );
+  });
+
+  it('turns <id:xxx> into an empty anchor', () => {
+    expect(render('see <id:sec1> here')).toContain('<a class="anchor" id="sec1"></a>');
+  });
+
+  it('escapes the href', () => {
+    expect(render('[x](https://a.example/?a=1&b=2)')).toContain(
+      'href="https://a.example/?a=1&amp;b=2"'
+    );
+  });
+});
+
 describe('maths rendering', () => {
   it('delegates inline maths to the injected renderer', () => {
     expect(render('a $x^2$ b')).toContain('<svg data-display="false">x^2</svg>');

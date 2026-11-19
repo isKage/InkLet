@@ -23,6 +23,8 @@ export interface EditorOptions {
   readonly language?: 'zh' | 'en';
   /** Syntax highlighting for fenced code blocks. */
   readonly highlightCode?: HighlightCode;
+  /** Follows a link clicked in the rendered document. */
+  readonly onLink?: (target: string) => void;
 }
 
 /** The subset `livePreview` needs; kept together so reconfiguration cannot drop options. */
@@ -32,6 +34,7 @@ function liveOptions(options: {
   resolveImage?: ImageResolver;
   language?: 'zh' | 'en';
   highlightCode?: HighlightCode;
+  onLink?: (target: string) => void;
 }) {
   return {
     renderMath: options.renderMath,
@@ -39,6 +42,7 @@ function liveOptions(options: {
     ...(options.resolveImage ? { resolveImage: options.resolveImage } : {}),
     ...(options.language ? { language: options.language } : {}),
     ...(options.highlightCode ? { highlightCode: options.highlightCode } : {}),
+    ...(options.onLink ? { onLink: options.onLink } : {}),
   };
 }
 
@@ -102,6 +106,20 @@ export function refreshDecorations(view: EditorView): void {
   view.dispatch({ selection: view.state.selection });
 }
 
+/** Moves the caret to `pos` and centres that line, without touching the text. */
+export function jumpToPosition(
+  view: EditorView,
+  pos: number,
+  options: { focus?: boolean } = {}
+): void {
+  const clamped = Math.max(0, Math.min(pos, view.state.doc.length));
+  view.dispatch({
+    selection: { anchor: clamped },
+    effects: EditorView.scrollIntoView(clamped, { y: 'center' }),
+  });
+  if (options.focus !== false) view.focus();
+}
+
 export function setEditorMode(
   view: EditorView,
   mode: EditorMode,
@@ -111,6 +129,7 @@ export function setEditorMode(
     resolveImage?: ImageResolver;
     language?: 'zh' | 'en';
     highlightCode?: HighlightCode;
+    onLink?: (target: string) => void;
   }
 ): void {
   view.dispatch({

@@ -3,7 +3,6 @@ export type Lang = 'zh' | 'en';
 
 export interface Strings {
   readonly openFolder: string;
-  readonly guide: string;
   readonly files: string;
   readonly outline: string;
   readonly treeEmpty: string;
@@ -60,11 +59,26 @@ export interface Strings {
   readonly newEntry: string;
   readonly noWorkspaceForNew: string;
   readonly rename: string;
+  readonly duplicate: string;
   readonly copy: string;
   readonly copyPath: string;
   readonly deleteAction: string;
   readonly copied: string;
+  readonly duplicated: string;
+  readonly copySuffix: string;
   readonly pathCopied: string;
+  readonly pasteTitle: string;
+  readonly pasteBody: (names: readonly string[], where: string) => string;
+  readonly pasteConfirm: string;
+  readonly pasted: (count: number) => string;
+  readonly nothingToPaste: string;
+  readonly terminal: string;
+  readonly terminalOpen: string;
+  readonly terminalCollapse: string;
+  readonly terminalClose: string;
+  readonly terminalExited: string;
+  readonly terminalResizerHint: string;
+  readonly terminalFailed: (reason: string) => string;
   readonly deleteConfirm: (name: string) => string;
   readonly deleteWarning: string;
   readonly fileOpFailed: (reason: string) => string;
@@ -123,7 +137,6 @@ export interface Strings {
 export const STRINGS: Record<Lang, Strings> = {
   zh: {
     openFolder: '选择文件夹',
-    guide: '指南',
     files: '文件',
     outline: '大纲',
     treeEmpty: '这里没有可打开的文件',
@@ -180,11 +193,26 @@ export const STRINGS: Record<Lang, Strings> = {
     newEntry: '新建',
     noWorkspaceForNew: '先打开一个文件夹',
     rename: '重命名…',
+    duplicate: '创建副本',
     copy: '复制',
     copyPath: '复制文件路径',
     deleteAction: '删除',
     copied: '已复制',
+    duplicated: '已创建副本',
+    copySuffix: '副本',
     pathCopied: '路径已复制',
+    pasteTitle: '拷贝到当前路径？',
+    pasteBody: (names, where) => `将 ${names.join('、')} 复制到「${where}」？`,
+    pasteConfirm: '确认',
+    pasted: (count) => `已粘贴 ${count} 项`,
+    nothingToPaste: '剪贴板里没有可粘贴的文件',
+    terminal: '终端',
+    terminalOpen: '终端',
+    terminalCollapse: '收起终端',
+    terminalClose: '关闭终端',
+    terminalExited: '进程已结束',
+    terminalResizerHint: '拖动调整终端高度',
+    terminalFailed: (reason) => `无法打开终端：${reason}`,
     deleteConfirm: (name) => `删除 ${name}？`,
     deleteWarning: '删除后无法恢复。',
     fileOpFailed: (reason) => `操作失败：${reason}`,
@@ -244,7 +272,6 @@ export const STRINGS: Record<Lang, Strings> = {
   },
   en: {
     openFolder: 'Choose Folder',
-    guide: 'Guide',
     files: 'Files',
     outline: 'Outline',
     treeEmpty: 'No openable files here',
@@ -301,11 +328,26 @@ export const STRINGS: Record<Lang, Strings> = {
     newEntry: 'New',
     noWorkspaceForNew: 'Open a folder first',
     rename: 'Rename…',
-    copy: 'Duplicate',
+    duplicate: 'Duplicate',
+    copy: 'Copy',
     copyPath: 'Copy Path',
     deleteAction: 'Delete',
-    copied: 'Duplicated',
+    copied: 'Copied',
+    duplicated: 'Duplicated',
+    copySuffix: 'copy',
     pathCopied: 'Path copied',
+    pasteTitle: 'Copy into this folder?',
+    pasteBody: (names, where) => `Copy ${names.join(', ')} into "${where}"?`,
+    pasteConfirm: 'Confirm',
+    pasted: (count) => `Pasted ${count} item${count === 1 ? '' : 's'}`,
+    nothingToPaste: 'There is no file on the clipboard',
+    terminal: 'Terminal',
+    terminalOpen: 'Terminal',
+    terminalCollapse: 'Collapse terminal',
+    terminalClose: 'Close terminal',
+    terminalExited: 'Process exited',
+    terminalResizerHint: 'Drag to resize the terminal',
+    terminalFailed: (reason) => `Could not open the terminal: ${reason}`,
     deleteConfirm: (name) => `Delete ${name}?`,
     deleteWarning: 'This cannot be undone.',
     fileOpFailed: (reason) => `Failed: ${reason}`,

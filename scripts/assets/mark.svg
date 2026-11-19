@@ -4,7 +4,7 @@
 
     Source of truth for the app icon — regenerate the platform assets with
 
-      node scripts/make-icon.mjs
+      node scripts/assets/make-icon.mjs
 
     The same geometry is inlined as `#inklet-mark` in apps/desktop/index.html, so
     the icon in the title bar and the one in the Dock cannot drift apart.
@@ -12,11 +12,13 @@
     identical on every machine.
 
     Draw order is the design:
-      plate → L → (white keyline + grey stroke, clipped at the I) → I
+      plate → L → (white keyline + grey stroke) → I
 
-    - the stroke starts inside the I and is clipped at x=208 (the I's right edge),
-      so no round cap and no keyline can peek out on either side of the I;
-    - the I is painted last, so the stroke's left end is simply covered by it;
+    - no clipPath: the stroke starts inside the I, and the I is painted last, so
+      it covers the stroke's start on its own. A clipPath would have to live
+      inside a <symbol> when the same mark is inlined in apps/desktop/index.html,
+      and WebKit drops a clipped group inside a <use>-instantiated symbol, which
+      left the in-app mark as a bare "IL";
     - the white keyline cuts the L on both sides of the stroke where they cross.
   -->
   <rect
@@ -38,31 +40,24 @@
     Knobs:
       d                  M196 283 = starts inside the I, a little below its middle
                          320 185 = cap line (round cap top lands on 168)
-      clip  x=208        the I's right edge: nothing is drawn over the I itself
       white stroke-width 48  = 34 grey + 7px of white on each side
       grey  stroke-opacity 0.7
   -->
-  <clipPath id="past-the-i">
-    <rect x="208" y="120" width="300" height="280" />
-  </clipPath>
-
-  <g clip-path="url(#past-the-i)">
-    <path
-      d="M196 283 320 185"
-      fill="none"
-      stroke="#fdfdfe"
-      stroke-width="48"
-      stroke-linecap="round"
-    />
-    <path
-      d="M196 283 320 185"
-      fill="none"
-      stroke="#c8ccd4"
-      stroke-opacity="0.7"
-      stroke-width="34"
-      stroke-linecap="round"
-    />
-  </g>
+  <path
+    d="M196 283 320 185"
+    fill="none"
+    stroke="#fdfdfe"
+    stroke-width="48"
+    stroke-linecap="round"
+  />
+  <path
+    d="M196 283 320 185"
+    fill="none"
+    stroke="#c8ccd4"
+    stroke-opacity="0.7"
+    stroke-width="34"
+    stroke-linecap="round"
+  />
 
   <!-- I last: it hides the stroke's start, so the grey emerges from the letter -->
   <rect x="175" y="168" width="34" height="169" rx="17" fill="#17171b" />
